@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}我的问题 — 匿名提问箱{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>📋 我的问题</h1>
+    <p class="subtitle">以下是你在本设备上提交的问题</p>
+</header>
+
+<nav class="nav-links">
+    <a href="/" class="nav-link">🏠 返回首页</a>
+</nav>
+
+<section class="qa-section">
+    {% if questions %}
+    <div class="qa-list" id="myQaList">
+        {% for q in questions %}
+        <div class="qa-card my-qa-card" data-id="{{ q.id }}">
+            <div class="qa-card-header" onclick="toggleCard(this)">
+                <span class="qa-card-icon">▶</span>
+                <span class="qa-card-question">{{ q.content | e }}</span>
+                <span class="qa-status">
+                    {% if q.is_answered %}
+                        {% if q.is_visible %}
+                        <span class="badge badge-public">🌐 已公开展示</span>
+                        {% else %}
+                        <span class="badge badge-private">🔒 已回答（私密）</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge badge-pending">⏳ 等待回答</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="qa-card-body">
+                {% if q.is_answered %}
+                <div class="qa-card-answer">{{ q.answer_content | e }}</div>
+                <div class="qa-card-time">回答于 {{ q.answered_at[:10] }}</div>
+                {% else %}
+                <div class="qa-card-answer pending-answer">你的问题已收到，等待回答中…</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>你还没有提交过问题</p>
+        <a href="/" class="btn btn-primary" style="display: inline-block; margin-top: 16px; text-decoration: none;">去提问</a>
+    </div>
+    {% endif %}
+
+    <div class="notice">
+        ⚠️ 注意：清除浏览器数据或更换设备后将无法找回这些问题。这是匿名机制的取舍。
+    </div>
+</section>
+{% endblock %}

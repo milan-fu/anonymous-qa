@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}管理员面板 — 匿名提问箱{% endblock %}
+
+{% block content %}
+<header class="header admin-header">
+    <h1>🔑 管理员面板</h1>
+    <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
+</header>
+
+<nav class="nav-links">
+    <a href="/" class="nav-link" target="_blank">🏠 查看首页</a>
+</nav>
+
+<!-- 筛选栏 -->
+<div class="filter-bar">
+    <button class="btn btn-filter active" data-filter="all" onclick="setFilter('all', this)">全部</button>
+    <button class="btn btn-filter" data-filter="unanswered" onclick="setFilter('unanswered', this)">⏳ 未回答</button>
+    <button class="btn btn-filter" data-filter="answered" onclick="setFilter('answered', this)">✅ 已回答</button>
+    <button class="btn btn-filter" data-filter="visible" onclick="setFilter('visible', this)">🌐 已公开</button>
+</div>
+
+<!-- 问题列表 -->
+<section class="qa-section">
+    <div class="qa-list" id="adminQaList">
+        <!-- 动态填充 -->
+    </div>
+    <div class="empty-state" id="adminEmpty" style="display:none;">
+        <p>没有匹配的问题</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+
+async function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    await loadQuestions();
+}
+
+async function loadQuestions() {
+    try {
+        const res = await fetch(`/api/admin/questions?filter=${currentFilter}`);
+        if (res.status === 401) {
+            window.location.href = '/admin';
+            return;
+        }
+        const questions = await res.json();
+        renderAdminQuestions(questions);
+    } catch (err) {
+        console.error('加载问题失败', err);
+    }
+}
+
+function renderAdminQuestions(questions) {
+    const list = document.getElementById('adminQaList');
+    const empty = document.getElementById('adminEmpty');
+
+    if (!questions.length) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    list.innerHTML = questions.map(q => `
+        <div class="qa-card admin-qa-card" data-id="${q.id}">
+            <div class="qa-card-header" onclick="toggleCard(this)">
+                <span class="qa-card-icon">▶</span>
+                <div class="admin-card-summary">
+                    <span class="admin-ip">📍 ${escapeHtml(q.asker_ip)} · ${escapeHtml(q.asker_location || '查询中…')}</span>
+                    <span class="qa-card-question">${escapeHtml(q.content)}</span>
+                </div>
+                <span class="qa-status">
+                    ${q.is_answered
+                        ? '<span class="badge badge-answered">✅ 已回答</span>'
+                        : '<span class="badge badge-pending">⏳ 未回答</span>'}
+                    ${q.is_visible
+                        ? '<span class="badge badge-public">🌐 已展示</span>'
+                        : '<span class="badge badge-hidden">🙈 未展示</span>'}
+                </span>
+            </div>
+            <div class="qa-card-body">
+                <div class="admin-answer-section">
+                    <label class="admin-label">✏️ 回答：</label>
+                    <textarea
+                        class="input admin-answer-input"
+                        placeholder="输入你的回答…"
+                        rows="4"
+                    >${escapeHtml(q.answer_content || '')}</textarea>
+                </div>
+                <div class="admin-actions">
+                    <button class="btn btn-primary btn-sm" onclick="saveAnswer('${q.id}', this)">
+                        💾 保存回答
+                    </button>
+                    ${q.is_visible
+                        ? `<button class="btn btn-secondary btn-sm" onclick="toggleVisibility('${q.id}', false, this)">🙈 隐藏</button>`
+                        : `<button class="btn btn-outline btn-sm" onclick="toggleVisibility('${q.id}', true, this)">👁️ 展示</button>`
+                    }
+                </div>
+                <p class="admin-action-msg" id="msg-${q.id}"></p>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveAnswer(questionId, btn) {
+    const card = btn.closest('.qa-card');
+    const textarea = card.querySelector('.admin-answer-input');
+    const answerContent = textarea.value.trim();
+    const msgEl = document.getElementById(`msg-${questionId}`);
+
+    if (!answerContent) {
+        msgEl.textContent = '回答内容不能为空';
+        msgEl.className = 'admin-action-msg error';
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/questions/${questionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer_content: answerContent })
+        });
+        if (res.ok) {
+            msgEl.textContent = '✅ 回答保存成功';
+            msgEl.className = 'admin-action-msg success';
+            setTimeout(() => loadQuestions(), 1000);
+        } else if (res.status === 401) {
+            window.location.href = '/admin';
+        }
+    } catch (err) {
+        msgEl.textContent = '网络错误';
+        msgEl.className = 'admin-action-msg error';
+    }
+}
+
+async function toggleVisibility(questionId, makeVisible, btn) {
+    const msgEl = document.getElementById(`msg-${questionId}`);
+
+    try {
+        const res = await fetch(`/api/admin/questions/${questionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_visible: makeVisible })
+        });
+        if (res.ok) {
+            const action = makeVisible ? '已公开' : '已隐藏';
+            msgEl.textContent = `✅ ${action}`;
+            msgEl.className = 'admin-action-msg success';
+            setTimeout(() => loadQuestions(), 800);
+        } else if (res.status === 401) {
+            window.location.href = '/admin';
+        }
+    } catch (err) {
+        msgEl.textContent = '网络错误';
+        msgEl.className = 'admin-action-msg error';
+    }
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+async function handleLogout() {
+    await fetch('/api/admin/logout', { method: 'POST' });
+    window.location.href = '/admin';
+}
+
+// 页面加载时获取数据
+loadQuestions();
+</script>
+{% endblock %}

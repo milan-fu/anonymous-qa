@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}管理员登录 — 匿名提问箱{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-card">
+        <h2>🔑 管理员登录</h2>
+        <p class="login-subtitle">请输入密码以进入管理面板</p>
+        <form class="login-form" onsubmit="handleLogin(event)">
+            <input
+                type="password"
+                id="adminPassword"
+                placeholder="请输入管理员密码"
+                class="input"
+                autofocus
+            />
+            <button type="submit" class="btn btn-primary btn-full">登 录</button>
+        </form>
+        <p class="login-error" id="loginError"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function handleLogin(e) {
+    e.preventDefault();
+    const password = document.getElementById('adminPassword').value;
+    const errorEl = document.getElementById('loginError');
+
+    try {
+        const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            window.location.href = '/admin/dashboard';
+        } else {
+            errorEl.textContent = data.error || '登录失败';
+        }
+    } catch (err) {
+        errorEl.textContent = '网络错误，请重试';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,657 @@
+/* ── 全局重置与基础 ──────────────────────────────── */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --color-bg: #f8f9fa;
+    --color-surface: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #1a202c;
+    --color-text-secondary: #718096;
+    --color-primary: #5a67d8;
+    --color-primary-hover: #4c51bf;
+    --color-danger: #e53e3e;
+    --color-success: #38a169;
+    --color-warning: #d69e2e;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.06);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+}
+
+/* ── 头部 ──────────────────────────────────────────── */
+
+.header {
+    text-align: center;
+    padding: 40px 0 24px;
+}
+
+.header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    margin-bottom: 20px;
+}
+
+/* ── 导航 ──────────────────────────────────────────── */
+
+.nav-links {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.nav-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 16px;
+    border-radius: 20px;
+    transition: background 0.2s;
+}
+
+.nav-link:hover {
+    background: rgba(90, 103, 216, 0.08);
+}
+
+/* ── 按钮 ──────────────────────────────────────────── */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 24px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+
+.btn-secondary:hover {
+    background: #cbd5e0;
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--color-primary);
+    border: 1.5px solid var(--color-primary);
+}
+
+.btn-outline:hover {
+    background: rgba(90, 103, 216, 0.06);
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+.btn-ask {
+    font-size: 16px;
+    padding: 14px 36px;
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    transition: all 0.25s;
+}
+
+.btn-ask:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-full {
+    width: 100%;
+}
+
+/* ── 筛选栏 ────────────────────────────────────────── */
+
+.filter-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.btn-filter {
+    padding: 6px 16px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 20px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-filter:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.btn-filter.active {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* ── 问答区块 ──────────────────────────────────────── */
+
+.qa-section {
+    margin-top: 8px;
+}
+
+.section-title {
+    text-align: center;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+}
+
+.qa-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.qa-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}
+
+.qa-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.qa-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+.qa-card-header:hover {
+    background: #f7fafc;
+}
+
+.qa-card-icon {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    transition: transform 0.25s;
+    flex-shrink: 0;
+}
+
+.qa-card.expanded .qa-card-icon {
+    transform: rotate(90deg);
+}
+
+.qa-card-question {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.qa-card.expanded .qa-card-question {
+    white-space: normal;
+}
+
+.qa-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+}
+
+.qa-card.expanded .qa-card-body {
+    max-height: 500px;
+}
+
+.qa-card-answer {
+    padding: 0 20px 12px;
+    font-size: 15px;
+    color: var(--color-text);
+    line-height: 1.7;
+    border-top: 1px solid var(--color-border);
+    padding-top: 14px;
+    margin: 0 20px;
+}
+
+.qa-card-time {
+    padding: 0 20px 16px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    text-align: right;
+}
+
+/* ── 状态徽章 ──────────────────────────────────────── */
+
+.qa-status {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.badge-pending {
+    background: #fefcbf;
+    color: #975a16;
+}
+
+.badge-public {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.badge-private {
+    background: #e9d8fd;
+    color: #553c9a;
+}
+
+.badge-answered {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.badge-hidden {
+    background: #fed7d7;
+    color: #9b2c2c;
+}
+
+/* ── 空状态 ────────────────────────────────────────── */
+
+.empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--color-text-secondary);
+}
+
+.empty-state p {
+    font-size: 15px;
+}
+
+/* ── 提示通知 ──────────────────────────────────────── */
+
+.notice {
+    margin-top: 40px;
+    padding: 14px 20px;
+    background: #fffff0;
+    border: 1px solid #faf089;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: #975a16;
+    text-align: center;
+}
+
+/* ── 模态框 ────────────────────────────────────────── */
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 480px;
+    overflow: hidden;
+    animation: modalIn 0.25s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 12px;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+}
+
+.modal-close:hover {
+    color: var(--color-text);
+}
+
+.modal-body {
+    padding: 12px 24px;
+}
+
+.modal-body textarea {
+    width: 100%;
+    padding: 14px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-family: var(--font-sans);
+    resize: vertical;
+    min-height: 120px;
+    transition: border-color 0.2s;
+}
+
+.modal-body textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(90, 103, 216, 0.1);
+}
+
+.char-count {
+    text-align: right;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-top: 6px;
+}
+
+.char-count.over {
+    color: var(--color-danger);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px 20px;
+}
+
+/* ── Toast 提示 ────────────────────────────────────── */
+
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 28px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(4px);
+}
+
+.toast.success {
+    background: var(--color-success);
+}
+
+.toast.error {
+    background: var(--color-danger);
+}
+
+/* ── 登录页 ────────────────────────────────────────── */
+
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+}
+
+.login-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.login-card h2 {
+    font-size: 22px;
+    margin-bottom: 8px;
+}
+
+.login-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    margin-bottom: 28px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-family: var(--font-sans);
+    transition: border-color 0.2s;
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(90, 103, 216, 0.1);
+}
+
+.login-error {
+    color: var(--color-danger);
+    font-size: 14px;
+    margin-top: 8px;
+    min-height: 20px;
+}
+
+/* ── 管理员面板 ────────────────────────────────────── */
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0 12px;
+    text-align: left;
+}
+
+.admin-header h1 {
+    margin-bottom: 0;
+}
+
+.admin-card-summary {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-ip {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.admin-card-summary .qa-card-question {
+    font-size: 14px;
+}
+
+.admin-qa-card .qa-card-header {
+    flex-wrap: wrap;
+}
+
+.admin-answer-section {
+    padding: 4px 20px 12px;
+}
+
+.admin-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    display: block;
+    margin-bottom: 6px;
+}
+
+.admin-answer-input {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.admin-actions {
+    padding: 0 20px 16px;
+    display: flex;
+    gap: 8px;
+}
+
+.admin-action-msg {
+    padding: 0 20px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 20px;
+}
+
+.admin-action-msg.success {
+    color: var(--color-success);
+}
+
+.admin-action-msg.error {
+    color: var(--color-danger);
+}
+
+.pending-answer {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.my-qa-card .qa-card-header {
+    flex-wrap: wrap;
+}
+
+/* ── 响应式 ────────────────────────────────────────── */
+
+@media (max-width: 500px) {
+    .container {
+        padding: 16px 12px 60px;
+    }
+
+    .header h1 {
+        font-size: 24px;
+    }
+
+    .btn-ask {
+        padding: 12px 28px;
+        font-size: 15px;
+    }
+
+    .qa-card-header {
+        padding: 14px 16px;
+    }
+
+    .qa-card-answer {
+        padding: 12px 16px;
+        margin: 0;
+    }
+
+    .qa-status {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+}

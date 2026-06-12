@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}匿名提问箱 — 大胆问{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>🔒 匿名提问箱</h1>
+    <p class="subtitle">有什么想问的？大胆说出来</p>
+    <button class="btn btn-primary btn-ask" onclick="openAskModal()">✏️ 我要提问</button>
+</header>
+
+<nav class="nav-links">
+    <a href="/my" class="nav-link">📋 我的问题</a>
+</nav>
+
+<section class="qa-section">
+    <h2 class="section-title">— 已公开的回答 —</h2>
+
+    {% if questions %}
+    <div class="qa-list" id="qaList">
+        {% for q in questions %}
+        <div class="qa-card" data-id="{{ q.id }}">
+            <div class="qa-card-header" onclick="toggleCard(this)">
+                <span class="qa-card-icon">▶</span>
+                <span class="qa-card-question">Q: {{ q.content | e }}</span>
+            </div>
+            <div class="qa-card-body">
+                <div class="qa-card-answer">{{ q.answer_content | e }}</div>
+                <div class="qa-card-time">回答于 {{ q.answered_at[:10] }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>还没有公开的回答，快来提问吧！</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- 提问模态框 -->
+<div class="modal-overlay" id="askModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✏️ 匿名提问</h3>
+            <button class="modal-close" onclick="closeAskModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <textarea
+                id="questionInput"
+                placeholder="写下你想问的问题…（匿名，不超过200字）"
+                maxlength="200"
+                rows="5"
+            ></textarea>
+            <div class="char-count">
+                <span id="charCount">0</span> / 200
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeAskModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitQuestion()">提交问题</button>
+        </div>
+    </div>
+</div>
+
+<!-- 成功提示 -->
+<div class="toast" id="toast"></div>
+{% endblock %}
