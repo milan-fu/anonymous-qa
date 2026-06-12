@@ -36,6 +36,32 @@
                 {% if q.is_answered %}
                 <div class="qa-card-answer">{{ q.answer_content | e }}</div>
                 <div class="qa-card-time">💬 回答 {{ q.answered_at | bjt }}</div>
+
+                <!-- 追问列表 -->
+                {% if q.follow_ups %}
+                <div class="follow-ups">
+                    {% for fu in q.follow_ups %}
+                    <div class="follow-up-item">
+                        <div class="follow-up-q">🙋 追问：{{ fu.content | e }}</div>
+                        <div class="follow-up-time">📅 {{ fu.created_at | bjt }}</div>
+                        {% if fu.is_answered %}
+                        <div class="follow-up-a">💬 {{ fu.answer_content | e }}</div>
+                        <div class="follow-up-ans-time">{% if fu.modified_at %}📝 最后修改 {{ fu.modified_at | bjt }}{% else %}💬 回答时间 {{ fu.answered_at | bjt }}{% endif %}</div>
+                        {% else %}
+                        <div class="follow-up-pending">⏳ 等待回答</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- 追问输入框（仅当没有未回答的追问时显示） -->
+                {% if not q.has_unanswered_followup %}
+                <div class="follow-up-form">
+                    <textarea class="input follow-up-input" placeholder="追问…（不超过200字）" maxlength="200" rows="2"></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="submitFollowUp('{{ q.id }}', this)">发送追问</button>
+                </div>
+                {% endif %}
                 {% else %}
                 <div class="qa-card-answer pending-answer">你的问题已收到，等待回答中…</div>
                 {% endif %}
@@ -54,4 +80,33 @@
         ⚠️ 注意：清除浏览器数据或更换设备后将无法找回这些问题。这是匿名机制的取舍。
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function submitFollowUp(parentId, btn) {
+    var card = btn.closest('.qa-card-body');
+    var textarea = card.querySelector('.follow-up-input');
+    var content = textarea.value.trim();
+    if (!content) { return; }
+    if (content.length > 200) { alert('追问不能超过200字'); return; }
+
+    try {
+        var res = await fetch('/api/questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, parent_id: parentId })
+        });
+        var data = await res.json();
+        if (res.ok) {
+            textarea.value = '';
+            location.reload();
+        } else {
+            alert(data.error || '提交失败');
+        }
+    } catch(err) {
+        alert('网络错误');
+    }
+}
+</script>
 {% endblock %}

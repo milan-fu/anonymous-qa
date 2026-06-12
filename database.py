@@ -14,6 +14,14 @@ def get_db():
     return conn
 
 
+def migrate_add_column(conn, table, column, col_type):
+    """安全的列迁移"""
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+    except sqlite3.OperationalError:
+        pass
+
+
 def init_db():
     """初始化数据库表"""
     conn = get_db()
@@ -28,14 +36,16 @@ def init_db():
             is_visible INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             answered_at TEXT DEFAULT NULL,
-            secret_key TEXT DEFAULT ''
+            secret_key TEXT DEFAULT '',
+            parent_id TEXT DEFAULT NULL,
+            modified_at TEXT DEFAULT NULL
         )
     """)
-    # 给旧表补加 secret_key 列（如果表已存在但没有该列）
-    try:
-        conn.execute("ALTER TABLE questions ADD COLUMN secret_key TEXT DEFAULT ''")
-    except sqlite3.OperationalError:
-        pass  # 列已存在
+    # 旧表迁移
+    migrate_add_column(conn, "questions", "secret_key", "TEXT DEFAULT ''")
+    migrate_add_column(conn, "questions", "parent_id", "TEXT DEFAULT NULL")
+    migrate_add_column(conn, "questions", "modified_at", "TEXT DEFAULT NULL")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
             ip TEXT PRIMARY KEY,
@@ -49,7 +59,6 @@ def init_db():
 
 def get_ip_location(ip):
     """获取 IP 归属地，先查缓存，未命中则查 API"""
-    # 本地地址直接返回
     if ip in ("127.0.0.1", "::1", "localhost"):
         return "本地"
 
@@ -59,7 +68,6 @@ def get_ip_location(ip):
     if row:
         return row["location"]
 
-    # 缓存未命中，调用免费 API
     try:
         import urllib.request
         import json
@@ -79,7 +87,6 @@ def get_ip_location(ip):
 
         location = " ".join(parts) if parts else "未知"
 
-        # 写入缓存
         now = datetime.now(timezone.utc).isoformat()
         conn = get_db()
         conn.execute(
@@ -94,15 +101,16 @@ def get_ip_location(ip):
         return "未知"
 
 
-def create_question(content, asker_cookie_id, asker_ip):
-    """创建新问题，返回 (question_id, secret_key)"""
+def create_question(content, asker_cookie_id, asker_ip, parent_id=None):
+    """创建新问题（或追问），返回 (question_id, secret_key)"""
     question_id = str(uuid.uuid4())
     secret = secrets.token_urlsafe(16)
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     conn.execute(
-        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, created_at, secret_key) VALUES (?, ?, ?, ?, ?, ?)",
-        (question_id, content, asker_cookie_id, asker_ip, now, secret),
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, created_at, secret_key, parent_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (question_id, content, asker_cookie_id, asker_ip, now, secret, parent_id),
     )
     conn.commit()
     conn.close()
@@ -110,61 +118,137 @@ def create_question(content, asker_cookie_id, asker_ip):
 
 
 def get_visible_questions():
-    """获取所有公开展示的问答（已回答 + 可见），按回答时间倒序"""
+    """获取所有公开展示的问答（顶级 + 仅已回答的追问），按回答时间倒序"""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, content, answer_content, created_at, answered_at "
+        "SELECT id, content, answer_content, created_at, answered_at, modified_at "
         "FROM questions "
-        "WHERE is_answered = 1 AND is_visible = 1 "
+        "WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL "
         "ORDER BY answered_at DESC"
     ).fetchall()
+    questions = [dict(row) for row in rows]
+
+    # 只加载已回答的追问（未回答的追问不在公开页显示）
+    for q in questions:
+        q["follow_ups"] = _get_follow_ups(conn, q["id"], answered_only=True)
+
     conn.close()
-    return [dict(row) for row in rows]
+    return questions
 
 
 def get_questions_by_cookie(asker_cookie_id):
-    """根据 Cookie ID 获取用户的所有问题"""
+    """根据 Cookie ID 获取用户的所有顶级问题及追问"""
     conn = get_db()
+    # 顶级问题
     rows = conn.execute(
-        "SELECT id, content, is_answered, answer_content, is_visible, created_at, answered_at "
+        "SELECT id, content, is_answered, answer_content, is_visible, created_at, "
+        "answered_at, parent_id "
         "FROM questions "
-        "WHERE asker_cookie_id = ? "
+        "WHERE asker_cookie_id = ? AND parent_id IS NULL "
         "ORDER BY created_at DESC",
         (asker_cookie_id,),
     ).fetchall()
+    questions = [dict(row) for row in rows]
+
+    # 为每个问题加载追问
+    for q in questions:
+        q["follow_ups"] = _get_follow_ups(conn, q["id"])
+        # 检查是否有未回答的追问
+        q["has_unanswered_followup"] = any(
+            f["is_answered"] == 0 for f in q["follow_ups"]
+        )
+
     conn.close()
+    return questions
+
+
+def _get_follow_ups(conn, parent_id, answered_only=False):
+    """获取某个问题的追问，answered_only=True 时只返回已回答的"""
+    if answered_only:
+        rows = conn.execute(
+            "SELECT id, content, is_answered, answer_content, created_at, answered_at, modified_at "
+            "FROM questions WHERE parent_id = ? AND is_answered = 1 ORDER BY created_at ASC",
+            (parent_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, content, is_answered, answer_content, created_at, answered_at, modified_at "
+            "FROM questions WHERE parent_id = ? ORDER BY created_at ASC",
+            (parent_id,),
+        ).fetchall()
     return [dict(row) for row in rows]
+
+
+def get_follow_ups(parent_id):
+    """获取某个问题的所有追问（公开调用）"""
+    conn = get_db()
+    result = _get_follow_ups(conn, parent_id)
+    conn.close()
+    return result
 
 
 def get_all_questions(filter_type="all"):
-    """管理员：获取所有问题，支持筛选"""
+    """管理员：获取所有顶级问题，支持筛选"""
     conn = get_db()
-    base_query = "SELECT * FROM questions "
+    base_query = "SELECT * FROM questions WHERE parent_id IS NULL "
     params = ()
 
     if filter_type == "unanswered":
-        base_query += "WHERE is_answered = 0 "
+        base_query += "AND is_answered = 0 "
     elif filter_type == "answered":
-        base_query += "WHERE is_answered = 1 "
+        base_query += "AND is_answered = 1 "
     elif filter_type == "visible":
-        base_query += "WHERE is_visible = 1 "
+        base_query += "AND is_visible = 1 "
 
     base_query += "ORDER BY created_at DESC"
     rows = conn.execute(base_query, params).fetchall()
+    questions = [dict(row) for row in rows]
+
+    # 为每个问题加载追问
+    for q in questions:
+        q["follow_ups"] = _get_follow_ups(conn, q["id"])
+        q["has_unanswered_followup"] = any(
+            f["is_answered"] == 0 for f in q["follow_ups"]
+        )
+
     conn.close()
-    return [dict(row) for row in rows]
+    return questions
+
+
+def get_unanswered_count():
+    """管理员：获取未回答问题总数（包含顶级问题 + 追问）"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(*) as count FROM questions WHERE is_answered = 0"
+    ).fetchone()
+    conn.close()
+    return row["count"]
 
 
 def update_question(question_id, answer_content=None, is_visible=None):
     """管理员：更新问题的回答和展示状态"""
     conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
 
     if answer_content is not None:
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "UPDATE questions SET answer_content = ?, is_answered = 1, answered_at = ? WHERE id = ?",
-            (answer_content, now, question_id),
-        )
+        # 检查是否已经回答过（判断用 answered_at 还是 modified_at）
+        existing = conn.execute(
+            "SELECT is_answered, answer_content FROM questions WHERE id = ?",
+            (question_id,),
+        ).fetchone()
+
+        if existing and existing["is_answered"]:
+            # 已回答 → 这是修改，记录 modified_at
+            conn.execute(
+                "UPDATE questions SET answer_content = ?, modified_at = ? WHERE id = ?",
+                (answer_content, now, question_id),
+            )
+        else:
+            # 首次回答
+            conn.execute(
+                "UPDATE questions SET answer_content = ?, is_answered = 1, answered_at = ? WHERE id = ?",
+                (answer_content, now, question_id),
+            )
 
     if is_visible is not None:
         conn.execute(
@@ -185,15 +269,25 @@ def get_question_by_id(question_id):
 
 
 def get_question_by_secret(question_id, secret_key):
-    """根据问题 ID + 密钥获取单个问题"""
+    """根据问题 ID + 密钥获取单个问题（含追问）"""
     conn = get_db()
     row = conn.execute(
-        "SELECT id, content, is_answered, answer_content, is_visible, created_at, answered_at "
+        "SELECT id, content, is_answered, answer_content, is_visible, created_at, answered_at, parent_id "
         "FROM questions WHERE id = ? AND secret_key = ?",
         (question_id, secret_key),
     ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    question = dict(row)
+    # 如果是顶级问题，加载所有追问（含未回答的）
+    if not question.get("parent_id"):
+        question["follow_ups"] = _get_follow_ups(conn, question["id"], answered_only=False)
+        question["has_unanswered_followup"] = any(
+            f["is_answered"] == 0 for f in question["follow_ups"]
+        )
     conn.close()
-    return dict(row) if row else None
+    return question
 
 
 def adopt_question(question_id, asker_cookie_id):

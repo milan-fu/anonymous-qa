@@ -177,7 +177,17 @@ def api_create_question():
         return jsonify({"error": "提问太频繁了，请稍后再试"}), 429
 
     asker_id = get_or_create_asker_id()
-    question_id, secret_key = database.create_question(content, asker_id, asker_ip)
+    parent_id = data.get("parent_id")  # 追问时传入
+
+    # 追问校验：父问题必须存在且已回答
+    if parent_id:
+        parent = database.get_question_by_id(parent_id)
+        if not parent:
+            return jsonify({"error": "原问题不存在"}), 404
+        if not parent["is_answered"]:
+            return jsonify({"error": "问题尚未回答，还不能追问"}), 400
+
+    question_id, secret_key = database.create_question(content, asker_id, asker_ip, parent_id)
 
     view_url = url_for("view_question", question_id=question_id, _external=True)
     response = jsonify({
@@ -185,8 +195,16 @@ def api_create_question():
         "question_id": question_id,
         "secret_key": secret_key,
         "view_url": f"{view_url}?key={secret_key}",
+        "is_followup": bool(parent_id),
     })
     return set_asker_cookie(response)
+
+
+@app.route("/api/questions/<question_id>/follow-ups")
+def api_follow_ups(question_id):
+    """获取某个问题的追问列表"""
+    follow_ups = database.get_follow_ups(question_id)
+    return jsonify(follow_ups)
 
 
 # ── 匿名用户 API ─────────────────────────────────────────
@@ -217,6 +235,15 @@ def api_admin_login():
         return jsonify({"success": True})
 
     return jsonify({"error": "密码错误"}), 401
+
+
+@app.route("/api/admin/stats")
+@admin_required
+def api_admin_stats():
+    """管理员统计"""
+    return jsonify({
+        "unanswered_count": database.get_unanswered_count(),
+    })
 
 
 @app.route("/api/admin/logout", methods=["POST"])

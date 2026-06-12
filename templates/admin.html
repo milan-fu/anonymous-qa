@@ -4,14 +4,16 @@
 {% block content %}
 <header class="header admin-header">
     <h1>🔑 管理员面板</h1>
-    <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span class="badge badge-pending" id="unansweredBadge" style="font-size:14px;padding:6px 14px;">⏳ 未回答: ...</span>
+        <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
+    </div>
 </header>
 
 <nav class="nav-links">
     <a href="/" class="nav-link" target="_blank">🏠 查看首页</a>
 </nav>
 
-<!-- 筛选栏 -->
 <div class="filter-bar">
     <button class="btn btn-filter active" data-filter="all" onclick="setFilter('all', this)">全部</button>
     <button class="btn btn-filter" data-filter="unanswered" onclick="setFilter('unanswered', this)">⏳ 未回答</button>
@@ -19,148 +21,171 @@
     <button class="btn btn-filter" data-filter="visible" onclick="setFilter('visible', this)">🌐 已公开</button>
 </div>
 
-<!-- 问题列表 -->
 <section class="qa-section">
-    <div class="qa-list" id="adminQaList">
-        <!-- 动态填充 -->
-    </div>
-    <div class="empty-state" id="adminEmpty" style="display:none;">
-        <p>没有匹配的问题</p>
-    </div>
+    <div class="qa-list" id="adminQaList"></div>
+    <div class="empty-state" id="adminEmpty" style="display:none;"><p>没有匹配的问题</p></div>
 </section>
 {% endblock %}
 
 {% block scripts %}
 <script>
-let currentFilter = 'all';
+var currentFilter = 'all';
+
+async function loadStats() {
+    try {
+        var res = await fetch('/api/admin/stats');
+        var data = await res.json();
+        document.getElementById('unansweredBadge').textContent = '⏳ 未回答: ' + data.unanswered_count;
+        if (data.unanswered_count > 0) {
+            document.getElementById('unansweredBadge').className = 'badge badge-pending';
+            document.getElementById('unansweredBadge').style.fontSize = '14px';
+            document.getElementById('unansweredBadge').style.padding = '6px 14px';
+        }
+    } catch(e) {}
+}
 
 async function setFilter(filter, btn) {
     currentFilter = filter;
-    document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.btn-filter').forEach(function(b) { b.classList.remove('active'); });
     btn.classList.add('active');
     await loadQuestions();
 }
 
 async function loadQuestions() {
     try {
-        const res = await fetch(`/api/admin/questions?filter=${currentFilter}`);
-        if (res.status === 401) {
-            window.location.href = '/admin';
-            return;
-        }
-        const questions = await res.json();
+        var res = await fetch('/api/admin/questions?filter=' + currentFilter);
+        if (res.status === 401) { window.location.href = '/admin'; return; }
+        var questions = await res.json();
         renderAdminQuestions(questions);
-    } catch (err) {
-        console.error('加载问题失败', err);
-    }
+    } catch(err) { console.error(err); }
 }
 
 function renderAdminQuestions(questions) {
-    const list = document.getElementById('adminQaList');
-    const empty = document.getElementById('adminEmpty');
-
-    if (!questions.length) {
-        list.innerHTML = '';
-        empty.style.display = 'block';
-        return;
-    }
-
+    var list = document.getElementById('adminQaList');
+    var empty = document.getElementById('adminEmpty');
+    if (!questions.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    list.innerHTML = questions.map(q => `
-        <div class="qa-card admin-qa-card" data-id="${q.id}">
-            <div class="qa-card-header" onclick="toggleCard(this)">
-                <span class="qa-card-icon">▶</span>
-                <div class="admin-card-summary">
-                    <span class="admin-ip">📍 ${escapeHtml(q.asker_ip)} · ${escapeHtml(q.asker_location || '查询中…')}</span>
-                    <span class="admin-time">📅 ${formatTime(q.created_at)}</span>
-                    <span class="qa-card-question">${escapeHtml(q.content)}</span>
-                </div>
-                <span class="qa-status">
-                    ${q.is_answered
-                        ? '<span class="badge badge-answered">✅ 已回答</span>'
-                        : '<span class="badge badge-pending">⏳ 未回答</span>'}
-                    ${q.is_visible
-                        ? '<span class="badge badge-public">🌐 已展示</span>'
-                        : '<span class="badge badge-hidden">🙈 未展示</span>'}
-                </span>
-            </div>
-            <div class="qa-card-body">
-                <div class="admin-answer-section">
-                    <label class="admin-label">✏️ 回答：</label>
-                    <textarea
-                        class="input admin-answer-input"
-                        placeholder="输入你的回答…"
-                        rows="4"
-                    >${escapeHtml(q.answer_content || '')}</textarea>
-                </div>
-                ${q.answered_at ? '<div class="admin-time-body">💬 回答时间 ' + formatTime(q.answered_at) + '</div>' : ''}
-                <div class="admin-actions">
-                    <button class="btn btn-primary btn-sm" onclick="saveAnswer('${q.id}', this)">
-                        💾 保存回答
-                    </button>
-                    ${q.is_visible
-                        ? `<button class="btn btn-secondary btn-sm" onclick="toggleVisibility('${q.id}', false, this)">🙈 隐藏</button>`
-                        : `<button class="btn btn-outline btn-sm" onclick="toggleVisibility('${q.id}', true, this)">👁️ 展示</button>`
+
+    list.innerHTML = questions.map(function(q) {
+        // 追问渲染
+        var followUpsHtml = '';
+        if (q.follow_ups && q.follow_ups.length > 0) {
+            followUpsHtml = '<div class="follow-ups">' +
+                q.follow_ups.map(function(fu) {
+                    if (!fu.is_answered) {
+                        return '<div class="follow-up-item follow-up-unanswered">' +
+                            '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
+                            '<div class="follow-up-time">📅 ' + formatTime(fu.created_at) + '</div>' +
+                            '<div class="admin-answer-section">' +
+                                '<label class="admin-label">✏️ 回答追问：</label>' +
+                                '<textarea class="input admin-answer-input" rows="2"></textarea>' +
+                            '</div>' +
+                            '<div class="admin-actions">' +
+                                '<button class="btn btn-primary btn-sm" onclick="saveAnswer(\'' + fu.id + '\', this)">💾 保存回答</button>' +
+                            '</div>' +
+                            '<p class="admin-action-msg" id="msg-' + fu.id + '"></p>' +
+                        '</div>';
+                    } else {
+                        return '<div class="follow-up-item follow-up-answered">' +
+                            '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
+                            '<div class="follow-up-time">📅 ' + formatTime(fu.created_at) + '</div>' +
+                            '<div class="answer-display" id="answerDisplay-' + fu.id + '">' +
+                                '<div class="follow-up-a">💬 ' + escapeHtml(fu.answer_content) + '</div>' +
+                                '<div class="follow-up-ans-time">' + (fu.modified_at ? '📝 最后修改 ' + formatTime(fu.modified_at) : '💬 回答时间 ' + formatTime(fu.answered_at)) + '</div>' +
+                                '<button class="btn btn-sm btn-edit" onclick="editAnswer(\'' + fu.id + '\', this)">✏️ 编辑</button>' +
+                            '</div>' +
+                            '<div class="answer-edit" id="answerEdit-' + fu.id + '" style="display:none;">' +
+                                '<div class="admin-answer-section">' +
+                                    '<textarea class="input admin-answer-input" rows="2">' + escapeHtml(fu.answer_content) + '</textarea>' +
+                                '</div>' +
+                                '<div class="admin-actions">' +
+                                    '<button class="btn btn-primary btn-sm" onclick="saveAnswer(\'' + fu.id + '\', this)">💾 保存修改</button>' +
+                                    '<button class="btn btn-secondary btn-sm" onclick="cancelEdit(\'' + fu.id + '\')">取消</button>' +
+                                '</div>' +
+                            '</div>' +
+                            '<p class="admin-action-msg" id="msg-' + fu.id + '"></p>' +
+                        '</div>';
                     }
-                </div>
-                <p class="admin-action-msg" id="msg-${q.id}"></p>
-            </div>
-        </div>
-    `).join('');
+                }).join('') +
+            '</div>';
+        }
+
+        // 主问题渲染
+        var answerBlock = '';
+        if (q.is_answered) {
+            answerBlock =
+                '<div class="answer-display" id="answerDisplay-' + q.id + '">' +
+                    '<div class="qa-card-answer">' + escapeHtml(q.answer_content) + '</div>' +
+                    '<div class="admin-time-info">' +
+                        (q.modified_at ? '📝 最后修改 ' + formatTime(q.modified_at) : '💬 回答时间 ' + formatTime(q.answered_at)) +
+                    '</div>' +
+                    '<button class="btn btn-sm btn-edit" onclick="editAnswer(\'' + q.id + '\', this)">✏️ 编辑回答</button>' +
+                '</div>' +
+                '<div class="answer-edit" id="answerEdit-' + q.id + '" style="display:none;">' +
+                    '<div class="admin-answer-section">' +
+                        '<textarea class="input admin-answer-input" rows="4">' + escapeHtml(q.answer_content) + '</textarea>' +
+                    '</div>' +
+                    '<div class="admin-actions">' +
+                        '<button class="btn btn-primary btn-sm" onclick="saveAnswer(\'' + q.id + '\', this)">💾 保存修改</button>' +
+                        '<button class="btn btn-secondary btn-sm" onclick="cancelEdit(\'' + q.id + '\')">取消</button>' +
+                    '</div>' +
+                '</div>';
+        } else {
+            answerBlock =
+                '<div class="admin-answer-section">' +
+                    '<label class="admin-label">✏️ 回答：</label>' +
+                    '<textarea class="input admin-answer-input" rows="4"></textarea>' +
+                '</div>' +
+                '<div class="admin-actions">' +
+                    '<button class="btn btn-primary btn-sm" onclick="saveAnswer(\'' + q.id + '\', this)">💾 保存回答</button>' +
+                '</div>';
+        }
+
+        var followUpBadge = '';
+        if (q.has_unanswered_followup) {
+            followUpBadge = '<span class="badge badge-followup">🔔 有追问</span>';
+        }
+
+        return '<div class="qa-card admin-qa-card" data-id="' + q.id + '">' +
+            '<div class="qa-card-header" onclick="toggleCard(this)">' +
+                '<span class="qa-card-icon">▶</span>' +
+                '<div class="admin-card-summary">' +
+                    '<span class="admin-ip">📍 ' + escapeHtml(q.asker_ip) + ' · ' + escapeHtml(q.asker_location || '查询中…') + '</span>' +
+                    '<span class="admin-time">📅 ' + formatTime(q.created_at) + '</span>' +
+                    '<span class="qa-card-question">' + escapeHtml(q.content) + '</span>' +
+                '</div>' +
+                '<span class="qa-status">' +
+                    followUpBadge +
+                    (q.is_answered
+                        ? '<span class="badge badge-answered">✅ 已回答</span>'
+                        : '<span class="badge badge-pending">⏳ 未回答</span>') +
+                    (q.is_visible
+                        ? '<span class="badge badge-public">🌐 已展示</span>'
+                        : '<span class="badge badge-hidden">🙈 未展示</span>') +
+                '</span>' +
+            '</div>' +
+            '<div class="qa-card-body">' +
+                answerBlock +
+                followUpsHtml +
+                '<div class="admin-actions">' +
+                    (q.is_visible
+                        ? '<button class="btn btn-secondary btn-sm" onclick="toggleVisibility(\'' + q.id + '\', false, this)">🙈 隐藏</button>'
+                        : '<button class="btn btn-outline btn-sm" onclick="toggleVisibility(\'' + q.id + '\', true, this)">👁️ 展示</button>') +
+                '</div>' +
+                '<p class="admin-action-msg" id="msg-' + q.id + '"></p>' +
+            '</div>' +
+        '</div>';
+    }).join('');
 }
 
-async function saveAnswer(questionId, btn) {
-    const card = btn.closest('.qa-card');
-    const textarea = card.querySelector('.admin-answer-input');
-    const answerContent = textarea.value.trim();
-    const msgEl = document.getElementById(`msg-${questionId}`);
-
-    if (!answerContent) {
-        msgEl.textContent = '回答内容不能为空';
-        msgEl.className = 'admin-action-msg error';
-        return;
-    }
-
-    try {
-        const res = await fetch(`/api/admin/questions/${questionId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ answer_content: answerContent })
-        });
-        if (res.ok) {
-            msgEl.textContent = '✅ 回答保存成功';
-            msgEl.className = 'admin-action-msg success';
-            setTimeout(() => loadQuestions(), 1000);
-        } else if (res.status === 401) {
-            window.location.href = '/admin';
-        }
-    } catch (err) {
-        msgEl.textContent = '网络错误';
-        msgEl.className = 'admin-action-msg error';
-    }
+function editAnswer(questionId, btn) {
+    document.getElementById('answerDisplay-' + questionId).style.display = 'none';
+    document.getElementById('answerEdit-' + questionId).style.display = 'block';
 }
 
-async function toggleVisibility(questionId, makeVisible, btn) {
-    const msgEl = document.getElementById(`msg-${questionId}`);
-
-    try {
-        const res = await fetch(`/api/admin/questions/${questionId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_visible: makeVisible })
-        });
-        if (res.ok) {
-            const action = makeVisible ? '已公开' : '已隐藏';
-            msgEl.textContent = `✅ ${action}`;
-            msgEl.className = 'admin-action-msg success';
-            setTimeout(() => loadQuestions(), 800);
-        } else if (res.status === 401) {
-            window.location.href = '/admin';
-        }
-    } catch (err) {
-        msgEl.textContent = '网络错误';
-        msgEl.className = 'admin-action-msg error';
-    }
+function cancelEdit(questionId) {
+    document.getElementById('answerEdit-' + questionId).style.display = 'none';
+    document.getElementById('answerDisplay-' + questionId).style.display = 'block';
 }
 
 function formatTime(isoStr) {
@@ -172,9 +197,45 @@ function formatTime(isoStr) {
 }
 
 function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
+    var div = document.createElement('div');
+    div.textContent = str || '';
     return div.innerHTML;
+}
+
+async function saveAnswer(questionId, btn) {
+    var card = btn.closest('.follow-up-item') || btn.closest('.qa-card');
+    var textarea = card.querySelector('.admin-answer-input');
+    var answerContent = textarea.value.trim();
+    var msgEl = document.getElementById('msg-' + questionId);
+    if (!answerContent) { msgEl.textContent = '回答不能为空'; msgEl.className = 'admin-action-msg error'; return; }
+    try {
+        var res = await fetch('/api/admin/questions/' + questionId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer_content: answerContent })
+        });
+        if (res.ok) {
+            msgEl.textContent = '✅ 保存成功';
+            msgEl.className = 'admin-action-msg success';
+            setTimeout(function() { loadQuestions(); loadStats(); }, 800);
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) { msgEl.textContent = '网络错误'; msgEl.className = 'admin-action-msg error'; }
+}
+
+async function toggleVisibility(questionId, makeVisible, btn) {
+    var msgEl = document.getElementById('msg-' + questionId);
+    try {
+        var res = await fetch('/api/admin/questions/' + questionId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_visible: makeVisible })
+        });
+        if (res.ok) {
+            msgEl.textContent = makeVisible ? '✅ 已公开' : '✅ 已隐藏';
+            msgEl.className = 'admin-action-msg success';
+            setTimeout(function() { loadQuestions(); }, 800);
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) { msgEl.textContent = '网络错误'; msgEl.className = 'admin-action-msg error'; }
 }
 
 async function handleLogout() {
@@ -182,7 +243,7 @@ async function handleLogout() {
     window.location.href = '/admin';
 }
 
-// 页面加载时获取数据
 loadQuestions();
+loadStats();
 </script>
 {% endblock %}

@@ -616,6 +616,23 @@ body {
     padding: 0 20px 8px;
 }
 
+.admin-time-info {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    padding: 0 20px 10px;
+}
+
+.badge-followup {
+    background: #fed7aa;
+    color: #9a3412;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .admin-card-summary .qa-card-question {
     font-size: 14px;
 }
@@ -669,6 +686,101 @@ body {
 
 .my-qa-card .qa-card-header {
     flex-wrap: wrap;
+}
+
+/* ── 追问 ──────────────────────────────────────────── */
+
+.follow-ups {
+    margin: 0 20px;
+    border-top: 1px dashed var(--color-border);
+    padding-top: 8px;
+}
+
+.follow-up-item {
+    background: #f7fafc;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin-bottom: 8px;
+}
+
+.follow-up-q {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.follow-up-time {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+}
+
+.follow-up-a {
+    font-size: 14px;
+    color: var(--color-primary);
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dotted var(--color-border);
+}
+
+.follow-up-pending {
+    font-size: 12px;
+    color: var(--color-warning);
+    margin-top: 4px;
+}
+
+.follow-up-ans-time {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+    margin-bottom: 4px;
+}
+
+.btn-edit {
+    font-size: 11px;
+    padding: 2px 10px;
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    cursor: pointer;
+    margin-top: 6px;
+}
+
+.btn-edit:hover {
+    background: rgba(90, 103, 216, 0.06);
+    border-color: var(--color-primary);
+}
+
+.answer-display {
+    padding: 12px 20px;
+}
+
+.answer-display .qa-card-answer {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.follow-up-answered {
+    border-left: 3px solid var(--color-success);
+}
+
+.follow-up-unanswered {
+    border-left: 3px solid var(--color-warning);
+}
+
+.follow-up-form {
+    margin: 10px 20px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.follow-up-input {
+    flex: 1;
+    min-height: 40px;
+    font-size: 13px;
 }
 
 /* ── 响应式 ────────────────────────────────────────── */
