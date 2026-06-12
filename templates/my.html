@@ -15,9 +15,8 @@
     {% if questions %}
     <div class="qa-list" id="myQaList">
         {% for q in questions %}
-        <div class="qa-card my-qa-card" data-id="{{ q.id }}">
-            <div class="qa-card-header" onclick="toggleCard(this)">
-                <span class="qa-card-icon">▶</span>
+        <div class="qa-card qa-clickable" onclick="openMyDetail('{{ q.id }}')">
+            <div class="qa-card-header">
                 <span class="qa-card-question">{{ q.content | e }}</span>
                 <span class="qa-status">
                     {% if q.is_answered %}
@@ -29,42 +28,10 @@
                     {% else %}
                         <span class="badge badge-pending">⏳ 等待回答</span>
                     {% endif %}
+                    {% if q.has_unanswered_followup %}
+                        <span class="badge badge-followup">🔔</span>
+                    {% endif %}
                 </span>
-            </div>
-            <div class="qa-card-body">
-                <div class="qa-card-time">📅 提问 {{ q.created_at | bjt }}</div>
-                {% if q.is_answered %}
-                <div class="qa-card-answer">{{ q.answer_content | e }}</div>
-                <div class="qa-card-time">💬 回答 {{ q.answered_at | bjt }}</div>
-
-                <!-- 追问列表 -->
-                {% if q.follow_ups %}
-                <div class="follow-ups">
-                    {% for fu in q.follow_ups %}
-                    <div class="follow-up-item">
-                        <div class="follow-up-q">🙋 追问：{{ fu.content | e }}</div>
-                        <div class="follow-up-time">📅 {{ fu.created_at | bjt }}</div>
-                        {% if fu.is_answered %}
-                        <div class="follow-up-a">💬 {{ fu.answer_content | e }}</div>
-                        <div class="follow-up-ans-time">{% if fu.modified_at %}📝 最后修改 {{ fu.modified_at | bjt }}{% else %}💬 回答时间 {{ fu.answered_at | bjt }}{% endif %}</div>
-                        {% else %}
-                        <div class="follow-up-pending">⏳ 等待回答</div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-
-                <!-- 追问输入框（仅当没有未回答的追问时显示） -->
-                {% if not q.has_unanswered_followup %}
-                <div class="follow-up-form">
-                    <textarea class="input follow-up-input" placeholder="追问…（不超过200字）" maxlength="200" rows="2"></textarea>
-                    <button class="btn btn-primary btn-sm" onclick="submitFollowUp('{{ q.id }}', this)">发送追问</button>
-                </div>
-                {% endif %}
-                {% else %}
-                <div class="qa-card-answer pending-answer">你的问题已收到，等待回答中…</div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -77,20 +44,101 @@
     {% endif %}
 
     <div class="notice">
-        ⚠️ 注意：清除浏览器数据或更换设备后将无法找回这些问题。这是匿名机制的取舍。
+        ⚠️ 注意：清除浏览器数据或更换设备后将无法找回这些问题。
     </div>
 </section>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="myDetailModal">
+    <div class="modal modal-wide" id="myDetailContent"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-async function submitFollowUp(parentId, btn) {
-    var card = btn.closest('.qa-card-body');
-    var textarea = card.querySelector('.follow-up-input');
-    var content = textarea.value.trim();
-    if (!content) { return; }
-    if (content.length > 200) { alert('追问不能超过200字'); return; }
+var myData = [];
+async function loadMyData() {
+    try { var res = await fetch('/api/my-questions'); myData = await res.json(); } catch(e) {}
+}
+loadMyData();
 
+function openMyDetail(qid) {
+    var q = myData.find(function(x) { return x.id === qid; });
+    if (!q) return;
+
+    var followUpsHtml = '';
+    if (q.follow_ups && q.follow_ups.length > 0) {
+        followUpsHtml = '<div class="follow-ups">' +
+            q.follow_ups.map(function(fu) {
+                if (!fu.is_answered) {
+                    return '<div class="follow-up-item follow-up-unanswered">' +
+                        '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
+                        '<div class="follow-up-time">📅 ' + formatTime(fu.created_at) + '</div>' +
+                        '<div class="follow-up-pending">⏳ 等待回答</div>' +
+                    '</div>';
+                } else {
+                    return '<div class="follow-up-item">' +
+                        '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
+                        '<div class="follow-up-time">📅 ' + formatTime(fu.created_at) + '</div>' +
+                        '<div class="follow-up-a">💬 ' + escapeHtml(fu.answer_content) + '</div>' +
+                        '<div class="follow-up-ans-time">' + (fu.modified_at ? '📝 最后修改 ' + formatTime(fu.modified_at) : '💬 回答时间 ' + formatTime(fu.answered_at)) + '</div>' +
+                    '</div>';
+                }
+            }).join('') +
+        '</div>';
+    }
+
+    var answerBlock = '';
+    if (q.is_answered) {
+        answerBlock =
+            '<div class="qa-card-answer" style="margin:0;padding:12px 0;border:none;">' + escapeHtml(q.answer_content) + '</div>' +
+            '<div class="admin-time-info">' + (q.modified_at ? '📝 最后修改 ' + formatTime(q.modified_at) : '💬 回答时间 ' + formatTime(q.answered_at)) + '</div>';
+    } else {
+        answerBlock = '<div class="follow-up-pending">⏳ 你的问题已收到，等待回答中…</div>';
+    }
+
+    var followUpForm = '';
+    if (q.is_answered && !q.has_unanswered_followup) {
+        followUpForm =
+            '<div class="follow-up-form">' +
+                '<textarea class="input follow-up-input" placeholder="追问…（不超过200字）" maxlength="200" rows="2" id="myFollowUpInput"></textarea>' +
+                '<button class="btn btn-primary btn-sm" onclick="submitFollowUpFromMy(\'' + q.id + '\')">发送追问</button>' +
+            '</div>';
+    }
+
+    var html =
+        '<div class="modal-header">' +
+            '<h3>问题详情</h3>' +
+            '<button class="modal-close" onclick="closeMyDetail()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+            '<div class="detail-meta">' +
+                '<span>📅 提问 ' + formatTime(q.created_at) + '</span>' +
+                '<span>' + (q.is_answered ? '✅ 已回答' : '⏳ 等待回答') + '</span>' +
+                (q.is_visible ? '<span>🌐 已公开展示</span>' : '') +
+            '</div>' +
+            '<div class="detail-question">' + escapeHtml(q.content) + '</div>' +
+            answerBlock +
+            followUpsHtml +
+            followUpForm +
+        '</div>';
+    document.getElementById('myDetailContent').innerHTML = html;
+    document.getElementById('myDetailModal').classList.add('active');
+}
+
+function closeMyDetail() {
+    document.getElementById('myDetailModal').classList.remove('active');
+}
+
+document.getElementById('myDetailModal').addEventListener('click', function(e) {
+    if (e.target === this) closeMyDetail();
+});
+
+async function submitFollowUpFromMy(parentId) {
+    var textarea = document.getElementById('myFollowUpInput');
+    var content = textarea.value.trim();
+    if (!content) return;
+    if (content.length > 200) { alert('追问不能超过200字'); return; }
     try {
         var res = await fetch('/api/questions', {
             method: 'POST',
@@ -99,14 +147,24 @@ async function submitFollowUp(parentId, btn) {
         });
         var data = await res.json();
         if (res.ok) {
-            textarea.value = '';
-            location.reload();
-        } else {
-            alert(data.error || '提交失败');
-        }
-    } catch(err) {
-        alert('网络错误');
-    }
+            await loadMyData();
+            openMyDetail(parentId);
+        } else { alert(data.error || '提交失败'); }
+    } catch(err) { alert('网络错误'); }
+}
+
+function formatTime(isoStr) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
 }
 </script>
 {% endblock %}

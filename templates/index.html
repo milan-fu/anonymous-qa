@@ -18,26 +18,9 @@
     {% if questions %}
     <div class="qa-list" id="qaList">
         {% for q in questions %}
-        <div class="qa-card" data-id="{{ q.id }}">
-            <div class="qa-card-header" onclick="toggleCard(this)">
-                <span class="qa-card-icon">▶</span>
+        <div class="qa-card qa-clickable" onclick="openQaDetail('{{ q.id }}')">
+            <div class="qa-card-header">
                 <span class="qa-card-question">Q: {{ q.content | e }}</span>
-            </div>
-            <div class="qa-card-body">
-                <div class="qa-card-answer">{{ q.answer_content | e }}</div>
-                <div class="qa-card-time">📅 提问 {{ q.created_at | bjt }} · 回答 {{ q.answered_at | bjt }}</div>
-                {% if q.follow_ups %}
-                <div class="follow-ups">
-                    {% for fu in q.follow_ups %}
-                    <div class="follow-up-item">
-                        <div class="follow-up-q">🙋 追问：{{ fu.content | e }}</div>
-                        <div class="follow-up-time">📅 {{ fu.created_at | bjt }}</div>
-                        <div class="follow-up-a">💬 {{ fu.answer_content | e }}</div>
-                        <div class="follow-up-ans-time">{% if fu.modified_at %}📝 最后修改 {{ fu.modified_at | bjt }}{% else %}💬 回答时间 {{ fu.answered_at | bjt }}{% endif %}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -57,15 +40,8 @@
             <button class="modal-close" onclick="closeAskModal()">&times;</button>
         </div>
         <div class="modal-body">
-            <textarea
-                id="questionInput"
-                placeholder="写下你想问的问题…（匿名，不超过200字）"
-                maxlength="200"
-                rows="5"
-            ></textarea>
-            <div class="char-count">
-                <span id="charCount">0</span> / 200
-            </div>
+            <textarea id="questionInput" placeholder="写下你想问的问题…（匿名，不超过200字）" maxlength="200" rows="5"></textarea>
+            <div class="char-count"><span id="charCount">0</span> / 200</div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeAskModal()">取消</button>
@@ -77,9 +53,7 @@
 <!-- 提交成功弹窗 -->
 <div class="modal-overlay" id="successModal">
     <div class="modal">
-        <div class="modal-header">
-            <h3>✅ 提问成功！</h3>
-        </div>
+        <div class="modal-header"><h3>✅ 提问成功！</h3></div>
         <div class="modal-body success-body">
             <p class="success-tip">请保存以下链接，用于查看问题是否被回复：</p>
             <div class="success-link-box">
@@ -94,6 +68,10 @@
     </div>
 </div>
 
-<!-- 成功提示 -->
+<!-- 问答详情弹窗 -->
+<div class="modal-overlay" id="qaDetailModal">
+    <div class="modal modal-wide" id="qaDetailContent"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 {% endblock %}

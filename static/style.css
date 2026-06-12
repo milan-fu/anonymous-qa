@@ -688,6 +688,55 @@ body {
     flex-wrap: wrap;
 }
 
+/* ── 管理员弹窗 ────────────────────────────────────── */
+
+.modal-wide {
+    max-width: 640px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detail-question {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 12px 0;
+    line-height: 1.6;
+}
+
+.detail-question::before {
+    content: 'Q: ';
+    color: var(--color-primary);
+}
+
+.admin-list-item {
+    cursor: pointer;
+}
+
+.admin-list-item .qa-card-header:hover {
+    background: #f7fafc;
+}
+
+.qa-clickable {
+    cursor: pointer;
+}
+
+.qa-clickable:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+    transition: all 0.15s;
+}
+
 /* ── 追问 ──────────────────────────────────────────── */
 
 .follow-ups {

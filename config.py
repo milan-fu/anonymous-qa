@@ -10,7 +10,7 @@ DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data",
 SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production")
 
 # 频率限制：每个 IP 每分钟最多提问数
-RATE_LIMIT_PER_MINUTE = 3
+RATE_LIMIT_PER_MINUTE = 10
 
 # 问题字数上限
 QUESTION_MAX_LENGTH = 200

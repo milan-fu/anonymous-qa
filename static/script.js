@@ -130,6 +130,78 @@ document.addEventListener('click', function (e) {
     }
 });
 
+/* ── QA 详情弹窗（公开页） ─────────────────────────────── */
+
+var qaData = [];
+
+async function loadQaData() {
+    try {
+        var res = await fetch('/api/questions/visible');
+        qaData = await res.json();
+    } catch(e) {}
+}
+loadQaData();
+
+function openQaDetail(qid) {
+    var q = qaData.find(function(x) { return x.id === qid; });
+    if (!q) return;
+
+    var followUpsHtml = '';
+    if (q.follow_ups && q.follow_ups.length > 0) {
+        followUpsHtml = '<div class="follow-ups">' +
+            q.follow_ups.map(function(fu) {
+                return '<div class="follow-up-item">' +
+                    '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
+                    '<div class="follow-up-time">📅 ' + formatTimeStr(fu.created_at) + '</div>' +
+                    '<div class="follow-up-a">💬 ' + escapeHtml(fu.answer_content) + '</div>' +
+                    '<div class="follow-up-ans-time">' + (fu.modified_at ? '📝 最后修改 ' + formatTimeStr(fu.modified_at) : '💬 回答时间 ' + formatTimeStr(fu.answered_at)) + '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>';
+    }
+
+    var html =
+        '<div class="modal-header">' +
+            '<h3>问答详情</h3>' +
+            '<button class="modal-close" onclick="closeQaDetail()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+            '<div class="detail-meta">' +
+                '<span>📅 提问 ' + formatTimeStr(q.created_at) + '</span>' +
+                '<span>💬 回答 ' + formatTimeStr(q.answered_at) + '</span>' +
+            '</div>' +
+            '<div class="detail-question">' + escapeHtml(q.content) + '</div>' +
+            '<div class="qa-card-answer" style="margin:0;padding:12px 0;border:none;">' + escapeHtml(q.answer_content) + '</div>' +
+            followUpsHtml +
+        '</div>';
+    document.getElementById('qaDetailContent').innerHTML = html;
+    document.getElementById('qaDetailModal').classList.add('active');
+}
+
+function closeQaDetail() {
+    document.getElementById('qaDetailModal').classList.remove('active');
+}
+
+function formatTimeStr(isoStr) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
+// 点击背景关闭
+document.addEventListener('click', function(e) {
+    var m = document.getElementById('qaDetailModal');
+    if (m && e.target === m) closeQaDetail();
+});
+
 /* ── Toast 提示 ─────────────────────────────────────── */
 
 let toastTimer;
