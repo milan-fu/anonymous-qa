@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}问题未找到 — 匿名提问箱{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>❓ 问题未找到</h1>
+    <p class="subtitle">链接无效或密钥错误</p>
+</header>
+
+<div class="empty-state">
+    <p>无法找到该问题，请检查链接是否完整。</p>
+    <a href="/" class="btn btn-primary" style="display: inline-block; margin-top: 16px; text-decoration: none;">回首页</a>
+</div>
+{% endblock %}

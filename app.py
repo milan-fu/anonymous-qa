@@ -114,6 +114,16 @@ def admin_dashboard():
     return render_template("admin.html")
 
 
+@app.route("/q/<question_id>")
+def view_question(question_id):
+    """通过私密链接查看单个问题"""
+    secret_key = request.args.get("key", "")
+    question = database.get_question_by_secret(question_id, secret_key)
+    if not question:
+        return render_template("question_not_found.html"), 404
+    return render_template("question_detail.html", question=question)
+
+
 # ── 公开 API ─────────────────────────────────────────────
 
 
@@ -142,9 +152,15 @@ def api_create_question():
         return jsonify({"error": "提问太频繁了，请稍后再试"}), 429
 
     asker_id = get_or_create_asker_id()
-    question_id = database.create_question(content, asker_id, asker_ip)
+    question_id, secret_key = database.create_question(content, asker_id, asker_ip)
 
-    response = jsonify({"success": True, "question_id": question_id})
+    view_url = url_for("view_question", question_id=question_id, _external=True)
+    response = jsonify({
+        "success": True,
+        "question_id": question_id,
+        "secret_key": secret_key,
+        "view_url": f"{view_url}?key={secret_key}",
+    })
     return set_asker_cookie(response)
 
 

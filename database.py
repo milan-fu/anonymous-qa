@@ -1,3 +1,4 @@
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -26,9 +27,15 @@ def init_db():
             answer_content TEXT DEFAULT '',
             is_visible INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
-            answered_at TEXT DEFAULT NULL
+            answered_at TEXT DEFAULT NULL,
+            secret_key TEXT DEFAULT ''
         )
     """)
+    # 给旧表补加 secret_key 列（如果表已存在但没有该列）
+    try:
+        conn.execute("ALTER TABLE questions ADD COLUMN secret_key TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass  # 列已存在
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
             ip TEXT PRIMARY KEY,
@@ -88,17 +95,18 @@ def get_ip_location(ip):
 
 
 def create_question(content, asker_cookie_id, asker_ip):
-    """创建新问题，返回问题 ID"""
+    """创建新问题，返回 (question_id, secret_key)"""
     question_id = str(uuid.uuid4())
+    secret = secrets.token_urlsafe(16)
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     conn.execute(
-        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, created_at) VALUES (?, ?, ?, ?, ?)",
-        (question_id, content, asker_cookie_id, asker_ip, now),
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, created_at, secret_key) VALUES (?, ?, ?, ?, ?, ?)",
+        (question_id, content, asker_cookie_id, asker_ip, now, secret),
     )
     conn.commit()
     conn.close()
-    return question_id
+    return question_id, secret
 
 
 def get_visible_questions():
@@ -172,6 +180,18 @@ def get_question_by_id(question_id):
     """根据 ID 获取单个问题"""
     conn = get_db()
     row = conn.execute("SELECT * FROM questions WHERE id = ?", (question_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_question_by_secret(question_id, secret_key):
+    """根据问题 ID + 密钥获取单个问题"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id, content, is_answered, answer_content, is_visible, created_at, answered_at "
+        "FROM questions WHERE id = ? AND secret_key = ?",
+        (question_id, secret_key),
+    ).fetchone()
     conn.close()
     return dict(row) if row else None
 

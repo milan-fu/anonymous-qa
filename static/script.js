@@ -77,7 +77,14 @@ async function submitQuestion() {
         const data = await res.json();
 
         if (res.ok) {
-            showToast('提问成功！你可以在「我的问题」中查看回复', 'success');
+            // 把私密链接复制到剪贴板
+            const viewUrl = data.view_url;
+            try {
+                await navigator.clipboard.writeText(viewUrl);
+                showToast('提问成功！私密链接已复制，请保存以便查看回复', 'success');
+            } catch {
+                showToast('提问成功！私密链接: ' + viewUrl, 'success');
+            }
             closeAskModal();
         } else {
             showToast(data.error || '提交失败', 'error');
