@@ -77,15 +77,14 @@ async function submitQuestion() {
         const data = await res.json();
 
         if (res.ok) {
-            // 把私密链接复制到剪贴板
-            const viewUrl = data.view_url;
+            // 关闭提问弹窗，显示成功弹窗
+            document.getElementById('askModal').classList.remove('active');
+            document.getElementById('secretUrl').value = data.view_url;
+            document.getElementById('successModal').classList.add('active');
+            // 自动复制
             try {
-                await navigator.clipboard.writeText(viewUrl);
-                showToast('提问成功！私密链接已复制，请保存以便查看回复', 'success');
-            } catch {
-                showToast('提问成功！私密链接: ' + viewUrl, 'success');
-            }
-            closeAskModal();
+                await navigator.clipboard.writeText(data.view_url);
+            } catch {}
         } else {
             showToast(data.error || '提交失败', 'error');
         }
@@ -93,6 +92,33 @@ async function submitQuestion() {
         showToast('网络错误，请重试', 'error');
     }
 }
+
+function closeSuccessModal() {
+    document.getElementById('successModal').classList.remove('active');
+    document.getElementById('questionInput').value = '';
+    document.getElementById('charCount').textContent = '0';
+}
+
+async function copySecretUrl() {
+    const input = document.getElementById('secretUrl');
+    try {
+        await navigator.clipboard.writeText(input.value);
+        showToast('链接已复制！', 'success');
+    } catch {
+        input.select();
+        input.setSelectionRange(0, 99999);
+        showToast('请手动复制', 'error');
+    }
+}
+
+/* ── 关闭成功弹窗：点击背景 ────────────────────────────── */
+
+document.addEventListener('click', function (e) {
+    const successModal = document.getElementById('successModal');
+    if (successModal && e.target === successModal) {
+        // 不允许点背景关闭，必须点按钮
+    }
+});
 
 /* ── Toast 提示 ─────────────────────────────────────── */
 

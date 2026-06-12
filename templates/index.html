@@ -62,6 +62,26 @@
     </div>
 </div>
 
+<!-- 提交成功弹窗 -->
+<div class="modal-overlay" id="successModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✅ 提问成功！</h3>
+        </div>
+        <div class="modal-body success-body">
+            <p class="success-tip">请保存以下链接，用于查看问题是否被回复：</p>
+            <div class="success-link-box">
+                <input type="text" id="secretUrl" readonly class="input" />
+                <button class="btn btn-primary btn-sm" onclick="copySecretUrl()">📋 复制链接</button>
+            </div>
+            <p class="success-warning">⚠️ 链接含密钥，请勿分享。关闭后可通过「我的问题」再次查看。</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeSuccessModal()">我知道了</button>
+        </div>
+    </div>
+</div>
+
 <!-- 成功提示 -->
 <div class="toast" id="toast"></div>
 {% endblock %}
