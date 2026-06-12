@@ -18,9 +18,10 @@
             <span class="qa-card-question">{{ question.content | e }}</span>
         </div>
         <div class="qa-card-body" style="max-height: none;">
+            <div class="qa-card-time">📅 提问 {{ question.created_at | bjt }}</div>
             {% if question.is_answered %}
             <div class="qa-card-answer">{{ question.answer_content | e }}</div>
-            <div class="qa-card-time">回答于 {{ question.answered_at[:10] }}</div>
+            <div class="qa-card-time">💬 回答 {{ question.answered_at | bjt }}</div>
             {% else %}
             <div class="qa-card-answer pending-answer">你的问题已收到，等待回答中…</div>
             {% endif %}

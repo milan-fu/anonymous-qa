@@ -196,6 +196,17 @@ def get_question_by_secret(question_id, secret_key):
     return dict(row) if row else None
 
 
+def adopt_question(question_id, asker_cookie_id):
+    """将问题关联到新的 cookie ID（通过私密链接认领）"""
+    conn = get_db()
+    conn.execute(
+        "UPDATE questions SET asker_cookie_id = ? WHERE id = ?",
+        (asker_cookie_id, question_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def count_recent_questions_from_ip(ip, minutes=1):
     """统计某 IP 在最近 N 分钟内的提问数"""
     conn = get_db()

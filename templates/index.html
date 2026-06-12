@@ -25,7 +25,7 @@
             </div>
             <div class="qa-card-body">
                 <div class="qa-card-answer">{{ q.answer_content | e }}</div>
-                <div class="qa-card-time">回答于 {{ q.answered_at[:10] }}</div>
+                <div class="qa-card-time">📅 提问 {{ q.created_at | bjt }} · 回答 {{ q.answered_at | bjt }}</div>
             </div>
         </div>
         {% endfor %}

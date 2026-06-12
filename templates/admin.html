@@ -72,6 +72,7 @@ function renderAdminQuestions(questions) {
                 <span class="qa-card-icon">▶</span>
                 <div class="admin-card-summary">
                     <span class="admin-ip">📍 ${escapeHtml(q.asker_ip)} · ${escapeHtml(q.asker_location || '查询中…')}</span>
+                    <span class="admin-time">📅 ${formatTime(q.created_at)}</span>
                     <span class="qa-card-question">${escapeHtml(q.content)}</span>
                 </div>
                 <span class="qa-status">
@@ -92,6 +93,7 @@ function renderAdminQuestions(questions) {
                         rows="4"
                     >${escapeHtml(q.answer_content || '')}</textarea>
                 </div>
+                ${q.answered_at ? '<div class="admin-time-body">💬 回答时间 ' + formatTime(q.answered_at) + '</div>' : ''}
                 <div class="admin-actions">
                     <button class="btn btn-primary btn-sm" onclick="saveAnswer('${q.id}', this)">
                         💾 保存回答
@@ -159,6 +161,14 @@ async function toggleVisibility(questionId, makeVisible, btn) {
         msgEl.textContent = '网络错误';
         msgEl.className = 'admin-action-msg error';
     }
+}
+
+function formatTime(isoStr) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
 function escapeHtml(str) {

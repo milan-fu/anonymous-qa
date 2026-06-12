@@ -28,6 +28,21 @@ with app.app_context():
     database.init_db()
 
 
+@app.template_filter("bjt")
+def beijing_time_filter(iso_str):
+    """ISO 时间转北京时间，精确到分钟"""
+    from datetime import datetime, timedelta, timezone as tz
+
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        bj = dt.astimezone(tz(timedelta(hours=8)))
+        return bj.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return iso_str[:16]
+
+
 # ── 工具函数 ─────────────────────────────────────────────
 
 
@@ -44,6 +59,8 @@ def get_or_create_asker_id():
     asker_id = request.cookies.get("asker_id")
     if not asker_id:
         asker_id = str(uuid.uuid4())
+        # 存到 g 中，确保 set_asker_cookie 用同一个 ID
+        g._new_asker_id = asker_id
     return asker_id
 
 
@@ -64,7 +81,7 @@ def admin_required(f):
 def set_asker_cookie(response):
     """为响应设置匿名 Cookie（如尚未设置）"""
     if not request.cookies.get("asker_id"):
-        asker_id = str(uuid.uuid4())
+        asker_id = getattr(g, "_new_asker_id", str(uuid.uuid4()))
         response.set_cookie(
             "asker_id",
             asker_id,
@@ -116,12 +133,20 @@ def admin_dashboard():
 
 @app.route("/q/<question_id>")
 def view_question(question_id):
-    """通过私密链接查看单个问题"""
+    """通过私密链接查看单个问题，同时认领到当前 cookie"""
     secret_key = request.args.get("key", "")
     question = database.get_question_by_secret(question_id, secret_key)
     if not question:
         return render_template("question_not_found.html"), 404
-    return render_template("question_detail.html", question=question)
+
+    # 将问题认领到当前浏览器的 cookie，这样会出现在「我的问题」里
+    asker_id = get_or_create_asker_id()
+    database.adopt_question(question_id, asker_id)
+
+    response = app.make_response(
+        render_template("question_detail.html", question=question)
+    )
+    return set_asker_cookie(response)
 
 
 # ── 公开 API ─────────────────────────────────────────────

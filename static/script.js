@@ -81,10 +81,8 @@ async function submitQuestion() {
             document.getElementById('askModal').classList.remove('active');
             document.getElementById('secretUrl').value = data.view_url;
             document.getElementById('successModal').classList.add('active');
-            // 自动复制
-            try {
-                await navigator.clipboard.writeText(data.view_url);
-            } catch {}
+            // 自动复制（HTTP 兼容）
+            copyToClipboard(data.view_url);
         } else {
             showToast(data.error || '提交失败', 'error');
         }
@@ -99,16 +97,28 @@ function closeSuccessModal() {
     document.getElementById('charCount').textContent = '0';
 }
 
-async function copySecretUrl() {
-    const input = document.getElementById('secretUrl');
-    try {
-        await navigator.clipboard.writeText(input.value);
-        showToast('链接已复制！', 'success');
-    } catch {
-        input.select();
-        input.setSelectionRange(0, 99999);
-        showToast('请手动复制', 'error');
+function copyToClipboard(text) {
+    // 优先用 Clipboard API（HTTPS），fallback 到 execCommand（HTTP）
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(function() {});
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); } catch {}
+        document.body.removeChild(ta);
     }
+}
+
+function copySecretUrl() {
+    var input = document.getElementById('secretUrl');
+    copyToClipboard(input.value);
+    showToast('链接已复制！', 'success');
 }
 
 /* ── 关闭成功弹窗：点击背景 ────────────────────────────── */
