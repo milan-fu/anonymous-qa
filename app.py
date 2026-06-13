@@ -14,6 +14,7 @@ from flask import (
 
 import config
 import database
+import notify
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -207,6 +208,11 @@ def api_create_question():
 
     question_id, secret_key = database.create_question(content, asker_id, asker_ip, parent_id)
 
+    if parent_id:
+        notify.notify("🔔 有新追问")
+    else:
+        notify.notify("📬 有新提问")
+
     view_url = url_for("view_question", question_id=question_id, _external=True)
     response = jsonify({
         "success": True,
@@ -387,6 +393,9 @@ def api_submit_answer(post_id):
     nickname = data.get("nickname", "").strip()[:20]  # 限 20 字
     asker_id = get_or_create_asker_id()
     answer_id = database.submit_answer(post_id, content, asker_id, asker_ip, nickname)
+
+    title = post["content"][:30]
+    notify.notify(f'💬「{title}」有新留言')
 
     response = jsonify({"success": True, "answer_id": answer_id})
     return set_asker_cookie(response)
