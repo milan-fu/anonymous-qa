@@ -137,10 +137,45 @@ var qaData = [];
 async function loadQaData() {
     try {
         var res = await fetch('/api/questions/visible');
-        qaData = await res.json();
+        var newData = await res.json();
+        if (JSON.stringify(newData) !== JSON.stringify(qaData)) {
+            qaData = newData;
+            renderQaList();
+        }
     } catch(e) {}
 }
+
+function renderQaList() {
+    var list = document.getElementById('qaList');
+    var title = document.querySelector('.section-title');
+    if (title) title.textContent = '— 已公开的回答 · ' + qaData.length + ' 个问题 —';
+    if (!list) return;
+    if (!qaData.length) {
+        list.innerHTML = '<div class="empty-state"><p>还没有公开的回答，快来提问吧！</p></div>';
+        return;
+    }
+    list.innerHTML = qaData.map(function(q) {
+        var pinBadge = '';
+        if (q.is_help) {
+            pinBadge = '<span class="pin-badge" style="background:#dbeafe;color:#1e40af;">📖 帮助</span>';
+        } else if (q.is_pinned) {
+            pinBadge = '<span class="pin-badge">📌 置顶</span>';
+        }
+        var tagBadge = q.tag ? '<span class="pin-badge" style="background:#e8f5e9;color:#2e7d32;">' + escapeHtml(q.tag) + '</span>' : '';
+        return '<div class="qa-card qa-clickable' + (q.is_pinned ? ' qa-pinned' : '') + '" onclick="openQaDetail(\'' + q.id + '\')">' +
+            '<div class="qa-card-header">' +
+                pinBadge +
+                tagBadge +
+                '<span class="qa-card-question">Q: ' + escapeHtml(q.content) + '</span>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
 loadQaData();
+
+// 每 10 秒自动刷新
+setInterval(loadQaData, 10000);
 
 function openQaDetail(qid) {
     var q = qaData.find(function(x) { return x.id === qid; });

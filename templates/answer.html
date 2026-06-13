@@ -162,5 +162,47 @@ function showToast(message, type) {
     toast.className = 'toast ' + type + ' show';
     setTimeout(function() { toast.classList.remove('show'); }, 2500);
 }
+
+// ── 自动刷新 ──────────────────────────────────────
+
+var postData = [];
+
+async function loadPosts() {
+    try {
+        var res = await fetch('/api/posts');
+        var newData = await res.json();
+        if (JSON.stringify(newData) !== JSON.stringify(postData)) {
+            postData = newData;
+            renderPostList();
+        }
+    } catch(e) {}
+}
+
+function renderPostList() {
+    var list = document.getElementById('postList');
+    var title = document.querySelector('.section-title');
+    if (title) title.textContent = '— 管理员提问 · ' + postData.length + ' 个话题 —';
+    if (!list) return;
+    if (!postData.length) {
+        list.innerHTML = '<div class="empty-state"><p>管理员还没有发起提问</p></div>';
+        return;
+    }
+    list.innerHTML = postData.map(function(p) {
+        var tags = '';
+        if (p.is_help) tags += '<span class="pin-badge" style="background:#dbeafe;color:#1e40af;flex-shrink:0;">📖 帮助</span>';
+        else if (p.is_pinned) tags += '<span class="pin-badge" style="flex-shrink:0;">📌 置顶</span>';
+        if (p.tag) tags += '<span class="pin-badge" style="background:#e8f5e9;color:#2e7d32;flex-shrink:0;">' + escapeHtml(p.tag) + '</span>';
+        if (p.is_closed) tags += '<span class="badge badge-hidden" style="flex-shrink:0;">🔒 已关闭</span>';
+        return '<div class="post-card" onclick="openPostDetail(\'' + p.id + '\')" style="display:flex;align-items:center;gap:8px;">' +
+            tags +
+            '<span class="post-question">' + escapeHtml(p.content) + '</span>' +
+            '<span class="post-meta">💬 ' + p.answer_count + ' 条留言</span>' +
+        '</div>';
+    }).join('');
+}
+
+// 初始加载 + 每 10 秒轮询
+loadPosts();
+setInterval(loadPosts, 10000);
 </script>
 {% endblock %}
