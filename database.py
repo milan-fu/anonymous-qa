@@ -47,6 +47,8 @@ def init_db():
     migrate_add_column(conn, "questions", "modified_at", "TEXT DEFAULT NULL")
     migrate_add_column(conn, "questions", "is_pinned", "INTEGER NOT NULL DEFAULT 0")
     migrate_add_column(conn, "questions", "pinned_at", "TEXT DEFAULT NULL")
+    migrate_add_column(conn, "questions", "is_admin_post", "INTEGER NOT NULL DEFAULT 0")
+    migrate_add_column(conn, "questions", "is_closed", "INTEGER NOT NULL DEFAULT 0")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
@@ -192,7 +194,7 @@ def get_follow_ups(parent_id):
 def get_all_questions(filter_type="all"):
     """管理员：获取所有顶级问题，支持筛选"""
     conn = get_db()
-    base_query = "SELECT * FROM questions WHERE parent_id IS NULL "
+    base_query = "SELECT * FROM questions WHERE parent_id IS NULL AND is_admin_post = 0 "
     params = ()
 
     if filter_type == "unanswered":
@@ -312,6 +314,128 @@ def delete_question(question_id):
     conn.close()
 
 
+# ── 管理员提问 & 匿名回答 ──────────────────────────
+
+def create_admin_post(content):
+    """管理员创建提问"""
+    post_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, is_admin_post, is_visible, created_at) "
+        "VALUES (?, ?, '', 'admin', 1, 1, ?)",
+        (post_id, content, now),
+    )
+    conn.commit()
+    conn.close()
+    return post_id
+
+
+def get_admin_posts():
+    """获取所有管理员提问（公开页），含公开回答，置顶优先"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed FROM questions "
+        "WHERE is_admin_post = 1 ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
+    ).fetchall()
+    posts = [dict(row) for row in rows]
+    for p in posts:
+        p["answers"] = _get_admin_post_answers(conn, p["id"])
+        p["answer_count"] = len(p["answers"])
+    conn.close()
+    return posts
+
+
+def get_admin_post(post_id):
+    """获取单个管理员提问 + 公开回答"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id, content, created_at, is_closed, is_pinned, pinned_at FROM questions "
+        "WHERE id = ? AND is_admin_post = 1", (post_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    post = dict(row)
+    post["answers"] = _get_admin_post_answers(conn, post["id"])
+    conn.close()
+    return post
+
+
+def _get_admin_post_answers(conn, post_id):
+    """获取管理员提问下的可见回答，置顶优先"""
+    rows = conn.execute(
+        "SELECT id, content, asker_cookie_id, created_at, is_pinned, pinned_at "
+        "FROM questions WHERE parent_id = ? AND is_admin_post = 0 AND is_visible = 1 "
+        "ORDER BY is_pinned DESC, pinned_at ASC, created_at ASC",
+        (post_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def submit_answer(post_id, content, asker_cookie_id, asker_ip):
+    """匿名用户提交回答"""
+    answer_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, parent_id, is_admin_post, is_visible, created_at) "
+        "VALUES (?, ?, ?, ?, ?, 0, 1, ?)",
+        (answer_id, content, asker_cookie_id, asker_ip, post_id, now),
+    )
+    conn.commit()
+    conn.close()
+    return answer_id
+
+
+def get_admin_all_posts():
+    """管理员：获取所有提问 + 全部回答（含隐藏），置顶优先"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed FROM questions "
+        "WHERE is_admin_post = 1 ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
+    ).fetchall()
+    posts = [dict(row) for row in rows]
+    for p in posts:
+        p["answers"] = _get_admin_post_all_answers(conn, p["id"])
+        p["answer_count"] = len(p["answers"])
+    conn.close()
+    return posts
+
+
+def _get_admin_post_all_answers(conn, post_id):
+    """管理员：获取所有回答（含隐藏），置顶优先"""
+    rows = conn.execute(
+        "SELECT id, content, asker_cookie_id, asker_ip, created_at, is_visible, is_pinned, pinned_at "
+        "FROM questions WHERE parent_id = ? AND is_admin_post = 0 "
+        "ORDER BY is_pinned DESC, pinned_at ASC, created_at ASC",
+        (post_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def toggle_close_post(post_id):
+    """管理员：切换提问是否关闭留言"""
+    conn = get_db()
+    row = conn.execute("SELECT is_closed FROM questions WHERE id = ?", (post_id,)).fetchone()
+    if row:
+        new_val = 0 if row["is_closed"] else 1
+        conn.execute("UPDATE questions SET is_closed = ? WHERE id = ?", (new_val, post_id))
+    conn.commit()
+    conn.close()
+
+
+def toggle_answer_visibility(answer_id):
+    """管理员：切换回答可见性"""
+    conn = get_db()
+    row = conn.execute("SELECT is_visible FROM questions WHERE id = ?", (answer_id,)).fetchone()
+    if row:
+        new_val = 0 if row["is_visible"] else 1
+        conn.execute("UPDATE questions SET is_visible = ? WHERE id = ?", (new_val, answer_id))
+    conn.commit()
+    conn.close()
+
+
 def count_recent_questions_from_ip(ip, minutes=1):
     """统计某 IP 在最近 N 分钟内的提问数"""
     conn = get_db()
@@ -352,17 +476,19 @@ def reorder_pins(question_ids):
 
 
 def get_admin_stats():
-    """管理员统计：全部、未回答、已回答、已公开"""
+    """管理员统计：全部、未回答、已回答、已公开（不含管理员提问）"""
     conn = get_db()
-    total = conn.execute("SELECT COUNT(*) FROM questions WHERE parent_id IS NULL").fetchone()[0]
+    total = conn.execute(
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_admin_post = 0"
+    ).fetchone()[0]
     unanswered = conn.execute(
-        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 0"
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 0 AND is_admin_post = 0"
     ).fetchone()[0]
     answered = conn.execute(
-        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 1"
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 1 AND is_admin_post = 0"
     ).fetchone()[0]
     visible = conn.execute(
-        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_visible = 1 AND is_answered = 1"
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_visible = 1 AND is_answered = 1 AND is_admin_post = 0"
     ).fetchone()[0]
     conn.close()
     return {"total": total, "unanswered": unanswered, "answered": answered, "visible": visible}
@@ -372,7 +498,7 @@ def get_visible_count():
     """展示页统计：公开可见的顶级问题数"""
     conn = get_db()
     count = conn.execute(
-        "SELECT COUNT(*) FROM questions WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL"
+        "SELECT COUNT(*) FROM questions WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL AND is_admin_post = 0"
     ).fetchone()[0]
     conn.close()
     return count

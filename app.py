@@ -97,11 +97,28 @@ def set_asker_cookie(response):
 
 @app.route("/")
 def index():
-    """公开提问 & 浏览页"""
+    """首页 — 双入口"""
+    response = app.make_response(render_template("index.html"))
+    return set_asker_cookie(response)
+
+
+@app.route("/ask")
+def ask_page():
+    """匿名提问页"""
     questions = database.get_visible_questions()
     visible_count = database.get_visible_count()
     response = app.make_response(
-        render_template("index.html", questions=questions, visible_count=visible_count)
+        render_template("ask.html", questions=questions, visible_count=visible_count)
+    )
+    return set_asker_cookie(response)
+
+
+@app.route("/answer")
+def answer_page():
+    """匿名回答页"""
+    admin_posts = database.get_admin_posts()
+    response = app.make_response(
+        render_template("answer.html", admin_posts=admin_posts)
     )
     return set_asker_cookie(response)
 
@@ -322,6 +339,126 @@ def api_admin_reorder_pins():
 def api_question_stats():
     """公开统计：可见问题数"""
     return jsonify({"visible_count": database.get_visible_count()})
+
+
+# ── 管理员提问 & 匿名回答 API ──────────────────────────
+
+
+@app.route("/api/posts")
+def api_posts():
+    """公开：所有管理员提问"""
+    posts = database.get_admin_posts()
+    return jsonify(posts)
+
+
+@app.route("/api/posts/<post_id>")
+def api_post_detail(post_id):
+    """公开：单个管理员提问 + 回答"""
+    post = database.get_admin_post(post_id)
+    if not post:
+        return jsonify({"error": "不存在"}), 404
+    return jsonify(post)
+
+
+@app.route("/api/posts/<post_id>/answers", methods=["POST"])
+def api_submit_answer(post_id):
+    """公开：提交匿名回答"""
+    # 验证提问存在且未关闭
+    post = database.get_admin_post(post_id)
+    if not post:
+        return jsonify({"error": "提问不存在"}), 404
+    if post.get("is_closed"):
+        return jsonify({"error": "该提问已关闭留言"}), 403
+
+    data = request.get_json()
+    if not data or not data.get("content"):
+        return jsonify({"error": "回答不能为空"}), 400
+
+    content = data["content"].strip()
+    if len(content) > config.QUESTION_MAX_LENGTH:
+        return jsonify({"error": f"回答不能超过 {config.QUESTION_MAX_LENGTH} 字"}), 400
+
+    # IP 频率限制
+    asker_ip = get_real_ip()
+    recent_count = database.count_recent_questions_from_ip(asker_ip, minutes=1)
+    if recent_count >= config.RATE_LIMIT_PER_MINUTE:
+        return jsonify({"error": "操作太频繁了，请稍后再试"}), 429
+
+    asker_id = get_or_create_asker_id()
+    answer_id = database.submit_answer(post_id, content, asker_id, asker_ip)
+
+    response = jsonify({"success": True, "answer_id": answer_id})
+    return set_asker_cookie(response)
+
+
+@app.route("/api/posts/stats")
+def api_post_stats():
+    """公开：管理员提问数量"""
+    posts = database.get_admin_posts()
+    return jsonify({"post_count": len(posts)})
+
+
+# ── 管理员：提问管理 ──────────────────────────────────
+
+
+@app.route("/api/admin/posts", methods=["GET"])
+@admin_required
+def api_admin_posts():
+    """管理员：获取所有提问 + 全部回答"""
+    posts = database.get_admin_all_posts()
+    for p in posts:
+        for a in p.get("answers", []):
+            a["asker_location"] = database.get_ip_location(a.get("asker_ip", ""))
+    return jsonify(posts)
+
+
+@app.route("/api/admin/posts", methods=["POST"])
+@admin_required
+def api_admin_create_post():
+    """管理员：创建提问"""
+    data = request.get_json()
+    if not data or not data.get("content"):
+        return jsonify({"error": "提问内容不能为空"}), 400
+    content = data["content"].strip()
+    if len(content) > config.QUESTION_MAX_LENGTH:
+        return jsonify({"error": f"提问不能超过 {config.QUESTION_MAX_LENGTH} 字"}), 400
+    post_id = database.create_admin_post(content)
+    return jsonify({"success": True, "post_id": post_id})
+
+
+@app.route("/api/admin/posts/<post_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_post(post_id):
+    """管理员：删除提问（级联删除所有回答）"""
+    database.delete_question(post_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/answers/<answer_id>/visibility", methods=["PUT"])
+@admin_required
+def api_admin_toggle_answer_visibility(answer_id):
+    """管理员：切换回答可见性"""
+    database.toggle_answer_visibility(answer_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/posts/<post_id>/close", methods=["POST"])
+@admin_required
+def api_admin_toggle_close_post(post_id):
+    """管理员：切换提问关闭状态"""
+    database.toggle_close_post(post_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/posts/<post_id>/answers/reorder", methods=["PUT"])
+@admin_required
+def api_admin_reorder_answers(post_id):
+    """管理员：重排回答置顶顺序"""
+    data = request.get_json()
+    if not data or "ids" not in data:
+        return jsonify({"error": "缺少 ids"}), 400
+    database.reorder_pins(data["ids"])
+    return jsonify({"success": True})
 
 
 # ── 启动入口 ─────────────────────────────────────────────

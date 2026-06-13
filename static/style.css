@@ -84,6 +84,16 @@ body {
     background: rgba(90, 103, 216, 0.08);
 }
 
+.nav-link.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.nav-link.active:hover {
+    background: var(--color-primary-hover);
+    color: #fff;
+}
+
 /* ── 按钮 ──────────────────────────────────────────── */
 
 .btn {
@@ -917,11 +927,184 @@ body {
     font-size: 13px;
 }
 
+/* ── 首页双入口 ────────────────────────────────────── */
+
+.home-entries {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.home-entry-card {
+    flex: 1;
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    color: var(--color-text);
+    border: 2px solid transparent;
+}
+
+.home-entry-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary);
+}
+
+.home-entry-card .entry-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+
+.home-entry-card .entry-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.home-entry-card .entry-desc {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+/* ── 管理员提问卡片 ────────────────────────────────── */
+
+.post-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.post-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.post-question {
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.post-meta {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── 回答列表（帖子详情弹窗） ──────────────────────── */
+
+.answer-list {
+    margin-top: 16px;
+}
+
+.answer-item {
+    padding: 12px 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.answer-item:first-child {
+    border-top: none;
+}
+
+.answer-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-text);
+    margin-bottom: 4px;
+}
+
+.answer-meta {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    display: flex;
+    gap: 12px;
+}
+
+.answer-form {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 2px solid var(--color-border);
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.answer-input {
+    flex: 1;
+    min-height: 44px;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.answer-empty {
+    text-align: center;
+    padding: 24px 0;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+/* ── 管理员回答管理 ────────────────────────────────── */
+
+.answer-manage-item {
+    padding: 10px 12px;
+    background: #f7fafc;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.answer-manage-item .answer-text {
+    font-size: 14px;
+    line-height: 1.6;
+    word-break: break-all;
+    margin-bottom: 8px;
+}
+
+.answer-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    flex-wrap: wrap;
+}
+
+.answer-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 4px;
+}
+
+.answer-manage-item.hidden-answer {
+    opacity: 0.5;
+    background: #fef2f2;
+}
+
 /* ── 响应式 ────────────────────────────────────────── */
 
 @media (max-width: 500px) {
     .container {
         padding: 16px 12px 60px;
+    }
+
+    .home-entries {
+        flex-direction: column;
     }
 
     .header h1 {

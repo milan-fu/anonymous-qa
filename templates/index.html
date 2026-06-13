@@ -1,78 +1,24 @@
 {% extends "base.html" %}
-{% block title %}匿名提问箱 — 大胆问{% endblock %}
+{% block title %}匿名提问箱 — 大胆说{% endblock %}
 
 {% block content %}
 <header class="header">
     <h1>🔒 匿名提问箱</h1>
-    <p class="subtitle">有什么想问的？大胆说出来</p>
-    <button class="btn btn-primary btn-ask" onclick="openAskModal()">✏️ 我要提问</button>
+    <p class="subtitle">有什么想说的？大胆说出来</p>
 </header>
 
-<nav class="nav-links">
-    <a href="/my" class="nav-link">📋 我的问题</a>
-</nav>
 
-<section class="qa-section">
-    <h2 class="section-title">— 已公开的回答 · {{ visible_count }} 个问题 —</h2>
-
-    {% if questions %}
-    <div class="qa-list" id="qaList">
-        {% for q in questions %}
-        <div class="qa-card qa-clickable {% if q.is_pinned %}qa-pinned{% endif %}" onclick="openQaDetail('{{ q.id }}')">
-            <div class="qa-card-header">
-                {% if q.is_pinned %}<span class="pin-badge">📌 置顶</span>{% endif %}
-                <span class="qa-card-question">Q: {{ q.content | e }}</span>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-state">
-        <p>还没有公开的回答，快来提问吧！</p>
-    </div>
-    {% endif %}
-</section>
-
-<!-- 提问模态框 -->
-<div class="modal-overlay" id="askModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>✏️ 匿名提问</h3>
-            <button class="modal-close" onclick="closeAskModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <textarea id="questionInput" placeholder="写下你想问的问题…（匿名，不超过200字）" maxlength="200" rows="5"></textarea>
-            <div class="char-count"><span id="charCount">0</span> / 200</div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeAskModal()">取消</button>
-            <button class="btn btn-primary" onclick="submitQuestion()">提交问题</button>
-        </div>
-    </div>
+<!-- 双入口 -->
+<div class="home-entries">
+    <a href="/ask" class="home-entry-card">
+        <div class="entry-icon">📬</div>
+        <div class="entry-title">匿名提问</div>
+        <div class="entry-desc">向 TA 提问，等待回答</div>
+    </a>
+    <a href="/answer" class="home-entry-card">
+        <div class="entry-icon">✍️</div>
+        <div class="entry-title">匿名留言</div>
+        <div class="entry-desc">给 TA 留言</div>
+    </a>
 </div>
-
-<!-- 提交成功弹窗 -->
-<div class="modal-overlay" id="successModal">
-    <div class="modal">
-        <div class="modal-header"><h3>✅ 提问成功！</h3></div>
-        <div class="modal-body success-body">
-            <p class="success-tip">请保存以下链接，用于查看问题是否被回复：</p>
-            <div class="success-link-box">
-                <input type="text" id="secretUrl" readonly class="input" />
-                <button class="btn btn-primary btn-sm" onclick="copySecretUrl()">📋 复制链接</button>
-            </div>
-            <p class="success-warning">⚠️ 链接含密钥，请勿分享。关闭后可通过「我的问题」再次查看。</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-primary" onclick="closeSuccessModal()">我知道了</button>
-        </div>
-    </div>
-</div>
-
-<!-- 问答详情弹窗 -->
-<div class="modal-overlay" id="qaDetailModal">
-    <div class="modal modal-wide" id="qaDetailContent"></div>
-</div>
-
-<div class="toast" id="toast"></div>
 {% endblock %}

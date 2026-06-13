@@ -4,25 +4,40 @@
 {% block content %}
 <header class="header admin-header">
     <h1>🔑 管理员面板</h1>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;" id="statsBar">
+    <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
+    </div>
+</header>
+
+<nav class="nav-links" style="margin-bottom:16px;">
+    <a href="/" class="nav-link" target="_blank">🏠 查看首页</a>
+    <a href="javascript:switchTab('questions')" class="nav-link admin-tab active" id="tabQuestions">📬 管理提问箱</a>
+    <a href="javascript:switchTab('posts')" class="nav-link admin-tab" id="tabPosts">💬 管理留言箱</a>
+</nav>
+
+<!-- ── 管理提问箱 ── -->
+<div id="tabQuestionsView">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="statsBar">
         <span class="badge" style="background:#e2e8f0;color:#1a202c;font-size:13px;padding:5px 12px;">📊 全部: <b id="statTotal">...</b></span>
         <span class="badge badge-pending" style="font-size:13px;padding:5px 12px;">⏳ 未回答: <b id="statUnanswered">...</b></span>
         <span class="badge badge-answered" style="font-size:13px;padding:5px 12px;">✅ 已回答: <b id="statAnswered">...</b></span>
         <span class="badge badge-public" style="font-size:13px;padding:5px 12px;">🌐 已公开: <b id="statVisible">...</b></span>
         <button class="btn btn-sm btn-outline" onclick="openPinManager()" style="font-size:12px;">📌 管理置顶</button>
-        <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
     </div>
-</header>
 
-<nav class="nav-links">
-    <a href="/" class="nav-link" target="_blank">🏠 查看首页</a>
-</nav>
+    <div class="filter-bar">
+        <button class="btn btn-filter active" data-filter="all" onclick="setFilter('all', this)">全部</button>
+        <button class="btn btn-filter" data-filter="unanswered" onclick="setFilter('unanswered', this)">⏳ 未回答</button>
+        <button class="btn btn-filter" data-filter="answered" onclick="setFilter('answered', this)">✅ 已回答</button>
+        <button class="btn btn-filter" data-filter="visible" onclick="setFilter('visible', this)">🌐 已公开</button>
+    </div>
+</div>
 
-<div class="filter-bar">
-    <button class="btn btn-filter active" data-filter="all" onclick="setFilter('all', this)">全部</button>
-    <button class="btn btn-filter" data-filter="unanswered" onclick="setFilter('unanswered', this)">⏳ 未回答</button>
-    <button class="btn btn-filter" data-filter="answered" onclick="setFilter('answered', this)">✅ 已回答</button>
-    <button class="btn btn-filter" data-filter="visible" onclick="setFilter('visible', this)">🌐 已公开</button>
+<!-- ── 管理留言箱 ── -->
+<div id="tabPostsView" style="display:none;">
+    <div style="margin-bottom:16px;">
+        <button class="btn btn-primary btn-sm" onclick="openCreatePostModal()">➕ 发起提问</button>
+    </div>
 </div>
 
 <section class="qa-section">
@@ -39,13 +54,59 @@
 <div class="modal-overlay" id="pinManagerModal">
     <div class="modal" id="pinManagerContent"></div>
 </div>
+
+<!-- 发起提问弹窗 -->
+<div class="modal-overlay" id="createPostModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>➕ 发起提问</h3>
+            <button class="modal-close" onclick="closeCreatePostModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <textarea id="postContentInput" placeholder="写下你想问的问题…（不超过200字）" maxlength="200" rows="4"></textarea>
+            <div class="char-count"><span id="postCharCount">0</span> / 200</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCreatePostModal()">取消</button>
+            <button class="btn btn-primary" onclick="createPost()">发布提问</button>
+        </div>
+    </div>
+</div>
+
+<!-- 留言详情管理弹窗 -->
+<div class="modal-overlay" id="postManageModal">
+    <div class="modal modal-wide" id="postManageContent"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+var currentTab = 'questions';
 var currentFilter = 'all';
 var allQuestions = [];
-var fuToParent = {};  // 追问ID → 父问题ID 映射
+var allPosts = [];
+var fuToParent = {};
+
+function switchTab(tab) {
+    currentTab = tab;
+    sessionStorage.setItem('adminTab', tab);
+    document.querySelectorAll('.admin-tab').forEach(function(el) { el.classList.remove('active'); });
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+
+    document.getElementById('tabQuestionsView').style.display = tab === 'questions' ? 'block' : 'none';
+    document.getElementById('tabPostsView').style.display = tab === 'posts' ? 'block' : 'none';
+
+    if (tab === 'questions') {
+        document.getElementById('statsBar').style.display = 'flex';
+        document.querySelector('.filter-bar').style.display = 'flex';
+        loadQuestions();
+        loadStats();
+    } else {
+        document.getElementById('statsBar').style.display = 'none';
+        document.querySelector('.filter-bar').style.display = 'none';
+        loadPosts();
+    }
+}
 
 async function loadStats() {
     try {
@@ -115,7 +176,6 @@ function openDetail(qid) {
     var q = allQuestions.find(function(x) { return x.id === qid; });
     if (!q) return;
 
-    // 渲染追问
     var followUpsHtml = '';
     if (q.follow_ups && q.follow_ups.length > 0) {
         followUpsHtml = '<div class="follow-ups">' +
@@ -158,7 +218,6 @@ function openDetail(qid) {
         '</div>';
     }
 
-    // 渲染主问题
     var answerBlock = '';
     if (q.is_answered) {
         answerBlock =
@@ -231,7 +290,6 @@ document.getElementById('detailModal').addEventListener('click', function(e) {
 });
 
 function editFromModal(qid) {
-    // 找到原始答案内容（当前显示中的文本），重置 textarea
     var display = document.getElementById('answerDisplay-' + qid);
     if (!display) return;
     var answerEl = display.querySelector('.follow-up-a') || display.querySelector('.qa-card-answer');
@@ -239,7 +297,6 @@ function editFromModal(qid) {
     if (!editArea) return;
     var textarea = editArea.querySelector('textarea');
     if (textarea && answerEl) {
-        // 取纯文本（不包含「💬」前缀）
         var txt = answerEl.textContent || '';
         txt = txt.replace(/^💬\s*/, '');
         textarea.value = txt;
@@ -252,7 +309,6 @@ function cancelEdit(qid) {
     var editArea = document.getElementById('answerEdit-' + qid);
     if (!editArea) return;
     var display = document.getElementById('answerDisplay-' + qid);
-    // 重置 textarea 为原始值（从 display 中取）
     if (display) {
         var answerEl = display.querySelector('.follow-up-a') || display.querySelector('.qa-card-answer');
         var textarea = editArea.querySelector('textarea');
@@ -284,7 +340,6 @@ async function saveFromModal(qid) {
         if (res.ok) {
             await loadQuestions();
             await loadStats();
-            // 追问就跳回父问题，主问题就打开自己
             var parentId = fuToParent[qid] || qid;
             openDetail(parentId);
         } else if (res.status === 401) { window.location.href = '/admin'; }
@@ -399,7 +454,7 @@ function openPinManager() {
 
 function closePinManager() {
     document.getElementById('pinManagerModal').classList.remove('active');
-    loadQuestions();  // 从数据库重新加载，丢弃未保存的排序变更
+    loadQuestions();
 }
 
 document.getElementById('pinManagerModal').addEventListener('click', function(e) {
@@ -485,7 +540,218 @@ async function savePinOrder() {
     } catch(err) {}
 }
 
-loadQuestions();
-loadStats();
+// ── 管理员留言管理 ──────────────────────────────────
+
+async function loadPosts() {
+    try {
+        var res = await fetch('/api/admin/posts');
+        if (res.status === 401) { window.location.href = '/admin'; return; }
+        allPosts = await res.json();
+        renderPostList();
+    } catch(err) { console.error(err); }
+}
+
+function renderPostList() {
+    var list = document.getElementById('adminQaList');
+    var empty = document.getElementById('adminEmpty');
+    if (!allPosts.length) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        empty.querySelector('p').textContent = '还没有发起过提问';
+        return;
+    }
+    empty.style.display = 'none';
+
+    list.innerHTML = allPosts.map(function(p) {
+        return '<div class="qa-card admin-list-item" onclick="openPostManage(\'' + p.id + '\')">' +
+            '<div class="qa-card-header">' +
+                '<div class="admin-card-summary">' +
+                    '<span class="admin-time">📅 ' + formatTime(p.created_at) + '</span>' +
+                    '<span class="qa-card-question">📢 ' + escapeHtml(p.content) + '</span>' +
+                '</div>' +
+                '<span class="qa-status">' +
+                    (p.is_pinned ? '<span class="badge badge-pinned">📌 置顶</span>' : '') +
+                    (p.is_closed ? '<span class="badge badge-hidden">🔒 已关闭</span>' : '') +
+                    '<span class="badge badge-answered">💬 ' + p.answer_count + ' 条留言</span>' +
+                '</span>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function openPostManage(pid) {
+    var p = allPosts.find(function(x) { return x.id === pid; });
+    if (!p) return;
+
+    var answersHtml = '';
+    if (p.answers && p.answers.length > 0) {
+        answersHtml = '<div class="follow-ups">' +
+            p.answers.map(function(a) {
+                var hiddenClass = a.is_visible ? '' : ' hidden-answer';
+                var ipInfo = '📍 ' + escapeHtml(a.asker_ip || '?') + ' · ' + escapeHtml(a.asker_location || '');
+                return '<div class="answer-manage-item' + hiddenClass + '">' +
+                    (a.is_pinned ? '<span class="pin-badge" style="font-size:10px;">📌 置顶</span>' : '') +
+                    '<div class="answer-text">' + escapeHtml(a.content) + '</div>' +
+                    '<div class="answer-meta-row">' +
+                        '<span>' + ipInfo + '</span>' +
+                        '<span>📅 ' + formatTime(a.created_at) + '</span>' +
+                        '<span class="answer-actions">' +
+                            '<button class="btn btn-sm ' + (a.is_pinned ? 'btn-secondary' : 'btn-outline') + '" onclick="event.stopPropagation();toggleAnswerPin(\'' + a.id + '\', \'' + pid + '\')" style="font-size:11px;">' +
+                                (a.is_pinned ? '📌 取消置顶' : '📌 置顶') +
+                            '</button>' +
+                            '<button class="btn btn-sm ' + (a.is_visible ? 'btn-secondary' : 'btn-outline') + '" onclick="event.stopPropagation();toggleAnswerVis(\'' + a.id + '\', \'' + pid + '\')">' +
+                                (a.is_visible ? '🙈 隐藏' : '👁️ 展示') +
+                            '</button>' +
+                            '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteAnswer(\'' + a.id + '\', \'' + pid + '\')">🗑️</button>' +
+                        '</span>' +
+                    '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>';
+    } else {
+        answersHtml = '<p style="padding:0 20px;color:var(--color-text-secondary);">暂无留言</p>';
+    }
+
+    var html =
+        '<div class="modal-header">' +
+            '<h3>📢 ' + escapeHtml(p.content) + '</h3>' +
+            '<button class="modal-close" onclick="closePostManage()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+            '<div class="detail-meta">' +
+                '<span>📅 提问 ' + formatTime(p.created_at) + '</span>' +
+                '<span>💬 ' + p.answer_count + ' 条留言</span>' +
+                (p.is_closed ? '<span>🔒 已关闭留言</span>' : '') +
+            '</div>' +
+            answersHtml +
+            '<div class="admin-actions" style="margin-top:12px;">' +
+                '<button class="btn btn-sm ' + (p.is_pinned ? 'btn-secondary' : 'btn-outline') + '" onclick="togglePostPin(\'' + p.id + '\')">' +
+                    (p.is_pinned ? '📌 取消置顶' : '📌 置顶') +
+                '</button>' +
+                '<button class="btn btn-sm ' + (p.is_closed ? 'btn-outline' : 'btn-secondary') + '" onclick="toggleClosePost(\'' + p.id + '\')">' +
+                    (p.is_closed ? '🔓 重新开启' : '🔒 关闭留言') +
+                '</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="deletePost(\'' + p.id + '\')">🗑️ 删除此提问</button>' +
+            '</div>' +
+        '</div>';
+    document.getElementById('postManageContent').innerHTML = html;
+    document.getElementById('postManageModal').classList.add('active');
+}
+
+function closePostManage() {
+    document.getElementById('postManageModal').classList.remove('active');
+}
+
+document.getElementById('postManageModal').addEventListener('click', function(e) {
+    if (e.target === this) closePostManage();
+});
+
+async function toggleAnswerVis(aid, pid) {
+    try {
+        var res = await fetch('/api/admin/answers/' + aid + '/visibility', { method: 'PUT' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function toggleAnswerPin(aid, pid) {
+    try {
+        var res = await fetch('/api/admin/questions/' + aid + '/pin', { method: 'POST' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function togglePostPin(pid) {
+    try {
+        var res = await fetch('/api/admin/questions/' + pid + '/pin', { method: 'POST' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function toggleClosePost(pid) {
+    try {
+        var res = await fetch('/api/admin/posts/' + pid + '/close', { method: 'POST' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function deleteAnswer(aid, pid) {
+    if (!confirm('确定要删除这条留言吗？')) return;
+    try {
+        var res = await fetch('/api/admin/questions/' + aid, { method: 'DELETE' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function deletePost(pid) {
+    if (!confirm('确定要删除这个提问吗？所有留言也会被一并删除，此操作不可撤销！')) return;
+    try {
+        var res = await fetch('/api/admin/posts/' + pid, { method: 'DELETE' });
+        if (res.ok) {
+            closePostManage();
+            await loadPosts();
+        }
+    } catch(err) {}
+}
+
+function openCreatePostModal() {
+    document.getElementById('postContentInput').value = '';
+    document.getElementById('postCharCount').textContent = '0';
+    document.getElementById('createPostModal').classList.add('active');
+}
+
+function closeCreatePostModal() {
+    document.getElementById('createPostModal').classList.remove('active');
+}
+
+document.getElementById('createPostModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCreatePostModal();
+});
+
+async function createPost() {
+    var input = document.getElementById('postContentInput');
+    var content = input.value.trim();
+    if (!content) { alert('提问内容不能为空'); return; }
+    if (content.length > 200) { alert('提问不能超过 200 字'); return; }
+    try {
+        var res = await fetch('/api/admin/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        });
+        if (res.ok) {
+            closeCreatePostModal();
+            await loadPosts();
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) {}
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var postInput = document.getElementById('postContentInput');
+    var postCounter = document.getElementById('postCharCount');
+    if (postInput && postCounter) {
+        postInput.addEventListener('input', function() {
+            postCounter.textContent = this.value.length;
+        });
+    }
+});
+
+// 初始加载 — 记住上次所在的 tab
+var savedTab = sessionStorage.getItem('adminTab') || 'questions';
+switchTab(savedTab);
 </script>
 {% endblock %}

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}匿名留言 — 匿名提问箱{% endblock %}
+
+{% block content %}
+<header class="header">
+    <h1>✍️ 匿名留言</h1>
+    <p class="subtitle">给 TA 留言</p>
+</header>
+
+<nav class="nav-links">
+    <a href="/" class="nav-link">🏠 首页</a>
+</nav>
+
+<section class="qa-section">
+    <h2 class="section-title">— 管理员提问 · {{ admin_posts|length }} 个话题 —</h2>
+
+    {% if admin_posts %}
+    <div class="qa-list" id="postList">
+        {% for p in admin_posts %}
+        <div class="post-card" onclick="openPostDetail('{{ p.id }}')">
+            <span class="post-question">{% if p.is_pinned %}📌 {% endif %}{{ p.content | e }}{% if p.is_closed %} 🔒{% endif %}</span>
+            <span class="post-meta">💬 {{ p.answer_count }} 条留言 · {{ p.created_at | bjt }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>管理员还没有发起提问</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- 管理员提问详情弹窗 -->
+<div class="modal-overlay" id="postDetailModal">
+    <div class="modal modal-wide" id="postDetailContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var postCache = {};
+
+async function openPostDetail(postId) {
+    var post;
+    if (postCache[postId]) {
+        post = postCache[postId];
+    } else {
+        try {
+            var res = await fetch('/api/posts/' + postId);
+            post = await res.json();
+            postCache[postId] = post;
+        } catch(e) { return; }
+    }
+
+    var answersHtml = '';
+    if (post.answers && post.answers.length > 0) {
+        answersHtml = '<div class="answer-list">' +
+            post.answers.map(function(a) {
+                return '<div class="answer-item">' +
+                    (a.is_pinned ? ' <span class="pin-badge">📌 置顶</span>' : '') +
+                    '<div class="answer-content">' + escapeHtml(a.content) + '</div>' +
+                    '<div class="answer-meta">' +
+                        '<span>📅 ' + formatTimeStr(a.created_at) + '</span>' +
+                    '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>';
+    } else {
+        answersHtml = '<div class="answer-empty">还没有留言，快来第一个留言吧！</div>';
+    }
+
+    var closedMsg = post.is_closed ? '<div class="answer-empty" style="color:#e53e3e;">🔒 该提问已关闭留言</div>' : '';
+
+    var html =
+        '<div class="modal-header">' +
+            '<h3>📢 ' + escapeHtml(post.content) + '</h3>' +
+            '<button class="modal-close" onclick="closePostDetail()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+            '<div class="detail-meta">' +
+                '<span>📅 提问 ' + formatTimeStr(post.created_at) + '</span>' +
+                '<span>💬 ' + (post.answers ? post.answers.length : 0) + ' 条留言</span>' +
+                (post.is_closed ? '<span>🔒 已关闭</span>' : '') +
+            '</div>' +
+            answersHtml +
+            (post.is_closed ? closedMsg :
+            '<div class="answer-form">' +
+                '<textarea id="answerInput" class="input answer-input" placeholder="写下你的留言…（匿名，不超过200字）" maxlength="200" rows="2"></textarea>' +
+                '<button class="btn btn-primary btn-sm" onclick="submitAnswer(\'' + postId + '\')">提交</button>' +
+            '</div>') +
+        '</div>';
+
+    document.getElementById('postDetailContent').innerHTML = html;
+    document.getElementById('postDetailModal').classList.add('active');
+}
+
+function closePostDetail() {
+    document.getElementById('postDetailModal').classList.remove('active');
+}
+
+document.addEventListener('click', function(e) {
+    var m = document.getElementById('postDetailModal');
+    if (m && e.target === m) closePostDetail();
+});
+
+async function submitAnswer(postId) {
+    var input = document.getElementById('answerInput');
+    if (!input) return;
+    var content = input.value.trim();
+    if (!content) { showToast('请输入回答内容', 'error'); return; }
+    if (content.length > 200) { showToast('回答不能超过 200 字', 'error'); return; }
+
+    try {
+        var res = await fetch('/api/posts/' + postId + '/answers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        });
+        var data = await res.json();
+        if (res.ok) {
+            delete postCache[postId];
+            openPostDetail(postId);
+            showToast('回答已提交！', 'success');
+        } else {
+            showToast(data.error || '提交失败', 'error');
+        }
+    } catch(err) {
+        showToast('网络错误，请重试', 'error');
+    }
+}
+
+function formatTimeStr(isoStr) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+        + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
+function showToast(message, type) {
+    var toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = 'toast ' + type + ' show';
+    setTimeout(function() { toast.classList.remove('show'); }, 2500);
+}
+</script>
+{% endblock %}
