@@ -189,15 +189,17 @@ function openDetail(qid) {
         followUpsHtml = '<div class="follow-ups">' +
             q.follow_ups.map(function(fu) {
                 if (!fu.is_answered) {
+                    var fuDraft = fu.draft_content || '';
                     return '<div class="follow-up-item follow-up-unanswered">' +
                         '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
                         '<div class="follow-up-time">📅 ' + formatTime(fu.created_at) + '</div>' +
                         '<div class="admin-answer-section">' +
                             '<label class="admin-label">✏️ 回答追问：</label>' +
-                            '<textarea class="input admin-answer-input" rows="2" id="fuInput-' + fu.id + '"></textarea>' +
+                            '<textarea class="input admin-answer-input" rows="2" id="fuInput-' + fu.id + '">' + escapeHtml(fuDraft) + '</textarea>' +
                         '</div>' +
                         '<div class="admin-actions">' +
                             '<button class="btn btn-primary btn-sm" onclick="saveFromModal(\'' + fu.id + '\')">💾 保存回答</button>' +
+                            '<button class="btn btn-secondary btn-sm" onclick="saveDraft(\'' + fu.id + '\')">📝 保存草稿</button>' +
                         '</div>' +
                         '<p class="admin-action-msg" id="msg-' + fu.id + '"></p>' +
                     '</div>';
@@ -246,14 +248,17 @@ function openDetail(qid) {
                 '</div>' +
             '</div>';
     } else {
+        var draftVal = q.draft_content || '';
         answerBlock =
             '<div class="admin-answer-section">' +
                 '<label class="admin-label">✏️ 回答：</label>' +
-                '<textarea class="input admin-answer-input" rows="4" id="mainInput-' + q.id + '"></textarea>' +
+                '<textarea class="input admin-answer-input" rows="4" id="mainInput-' + q.id + '">' + escapeHtml(draftVal) + '</textarea>' +
             '</div>' +
             '<div class="admin-actions">' +
                 '<button class="btn btn-primary btn-sm" onclick="saveFromModal(\'' + q.id + '\')">💾 保存回答</button>' +
-            '</div>';
+                '<button class="btn btn-secondary btn-sm" onclick="saveDraft(\'' + q.id + '\')">📝 保存草稿</button>' +
+            '</div>' +
+            '<p class="admin-action-msg" id="msg-' + q.id + '"></p>';
     }
 
     var html =
@@ -351,10 +356,31 @@ async function saveFromModal(qid) {
             body: JSON.stringify({ answer_content: answerContent })
         });
         if (res.ok) {
+            await fetch('/api/admin/questions/' + qid + '/draft', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '' }) }).catch(function(){});
             await loadQuestions();
             await loadStats();
             var parentId = fuToParent[qid] || qid;
             openDetail(parentId);
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) {}
+}
+
+async function saveDraft(qid) {
+    var textarea = document.getElementById('mainInput-' + qid) || document.getElementById('fuInput-' + qid) || document.getElementById('mainEditInput-' + qid) || document.getElementById('fuEditInput-' + qid);
+    if (!textarea) return;
+    var content = textarea.value;
+    var msgEl = document.getElementById('msg-' + qid);
+    try {
+        var res = await fetch('/api/admin/questions/' + qid + '/draft', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        });
+        if (res.ok) {
+            await loadQuestions();
+            msgEl.textContent = '草稿已保存';
+            msgEl.className = 'admin-action-msg success';
+            setTimeout(function() { msgEl.textContent = ''; }, 2000);
         } else if (res.status === 401) { window.location.href = '/admin'; }
     } catch(err) {}
 }

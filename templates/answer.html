@@ -17,7 +17,7 @@
     {% if admin_posts %}
     <div class="qa-list" id="postList">
         {% for p in admin_posts %}
-        <div class="post-card" onclick="openPostDetail('{{ p.id }}')" style="display:flex;align-items:center;gap:8px;">
+        <div class="post-card{% if p.is_pinned or p.is_help %} qa-pinned{% endif %}" onclick="openPostDetail('{{ p.id }}')" style="display:flex;align-items:center;gap:8px;">
             {% if p.is_help %}<span class="pin-badge" style="background:#dbeafe;color:#1e40af;flex-shrink:0;">📖 帮助</span>{% elif p.is_pinned %}<span class="pin-badge" style="flex-shrink:0;">📌 置顶</span>{% endif %}
             {% if p.tag %}<span class="pin-badge" style="background:#e8f5e9;color:#2e7d32;flex-shrink:0;"> {{ p.tag | e }}</span>{% endif %}
             {% if p.is_closed %}<span class="badge badge-hidden" style="flex-shrink:0;">🔒 已关闭</span>{% endif %}
@@ -193,7 +193,8 @@ function renderPostList() {
         else if (p.is_pinned) tags += '<span class="pin-badge" style="flex-shrink:0;">📌 置顶</span>';
         if (p.tag) tags += '<span class="pin-badge" style="background:#e8f5e9;color:#2e7d32;flex-shrink:0;">' + escapeHtml(p.tag) + '</span>';
         if (p.is_closed) tags += '<span class="badge badge-hidden" style="flex-shrink:0;">🔒 已关闭</span>';
-        return '<div class="post-card" onclick="openPostDetail(\'' + p.id + '\')" style="display:flex;align-items:center;gap:8px;">' +
+        var pinnedClass = (p.is_pinned || p.is_help) ? ' qa-pinned' : '';
+        return '<div class="post-card' + pinnedClass + '" onclick="openPostDetail(\'' + p.id + '\')" style="display:flex;align-items:center;gap:8px;">' +
             tags +
             '<span class="post-question">' + escapeHtml(p.content) + '</span>' +
             '<span class="post-meta">💬 ' + p.answer_count + ' 条留言</span>' +

@@ -53,6 +53,7 @@ def init_db():
     migrate_add_column(conn, "questions", "is_help", "INTEGER NOT NULL DEFAULT 0")
     migrate_add_column(conn, "questions", "tag", "TEXT DEFAULT ''")
     migrate_add_column(conn, "questions", "is_admin_answer", "INTEGER NOT NULL DEFAULT 0")
+    migrate_add_column(conn, "questions", "draft_content", "TEXT DEFAULT ''")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
@@ -445,6 +446,14 @@ def toggle_help(question_id):
             # 是普通提问，取消所有普通提问的帮助标识
             conn.execute("UPDATE questions SET is_help = 0 WHERE parent_id IS NULL AND is_admin_post = 0")
     conn.execute("UPDATE questions SET is_help = ? WHERE id = ?", (new_val, question_id))
+    conn.commit()
+    conn.close()
+
+
+def save_draft(question_id, content):
+    """管理员：保存回答草稿（不标记为已回答）"""
+    conn = get_db()
+    conn.execute("UPDATE questions SET draft_content = ? WHERE id = ?", (content, question_id))
     conn.commit()
     conn.close()
 

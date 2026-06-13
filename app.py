@@ -443,6 +443,17 @@ def api_admin_toggle_answer_visibility(answer_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/admin/questions/<question_id>/draft", methods=["PUT"])
+@admin_required
+def api_admin_save_draft(question_id):
+    """管理员：保存回答草稿"""
+    data = request.get_json()
+    if not data or "content" not in data:
+        return jsonify({"error": "无效请求"}), 400
+    database.save_draft(question_id, data["content"])
+    return jsonify({"success": True})
+
+
 @app.route("/api/admin/questions/<question_id>/tag", methods=["PUT"])
 @admin_required
 def api_admin_set_tag(question_id):
