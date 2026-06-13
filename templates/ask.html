@@ -23,7 +23,12 @@
         {% for q in questions %}
         <div class="qa-card qa-clickable {% if q.is_pinned %}qa-pinned{% endif %}" onclick="openQaDetail('{{ q.id }}')">
             <div class="qa-card-header">
-                {% if q.is_pinned %}<span class="pin-badge">📌 置顶</span>{% endif %}
+                {% if q.is_help %}
+                    <span class="pin-badge" style="background:#dbeafe;color:#1e40af;">📖 帮助</span>
+                {% elif q.is_pinned %}
+                    <span class="pin-badge">📌 置顶</span>
+                {% endif %}
+                {% if q.tag %}<span class="pin-badge" style="background:#e8f5e9;color:#2e7d32;">{{ q.tag | e }}</span>{% endif %}
                 <span class="qa-card-question">Q: {{ q.content | e }}</span>
             </div>
         </div>

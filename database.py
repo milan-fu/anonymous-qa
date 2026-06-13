@@ -49,6 +49,10 @@ def init_db():
     migrate_add_column(conn, "questions", "pinned_at", "TEXT DEFAULT NULL")
     migrate_add_column(conn, "questions", "is_admin_post", "INTEGER NOT NULL DEFAULT 0")
     migrate_add_column(conn, "questions", "is_closed", "INTEGER NOT NULL DEFAULT 0")
+    migrate_add_column(conn, "questions", "nickname", "TEXT DEFAULT ''")
+    migrate_add_column(conn, "questions", "is_help", "INTEGER NOT NULL DEFAULT 0")
+    migrate_add_column(conn, "questions", "tag", "TEXT DEFAULT ''")
+    migrate_add_column(conn, "questions", "is_admin_answer", "INTEGER NOT NULL DEFAULT 0")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
@@ -125,10 +129,10 @@ def get_visible_questions():
     """获取所有公开展示的问答（顶级 + 仅已回答的追问），置顶优先，其余按回答时间倒序"""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, content, answer_content, created_at, answered_at, modified_at, is_pinned, pinned_at "
+        "SELECT id, content, answer_content, created_at, answered_at, modified_at, is_pinned, pinned_at, is_help, tag "
         "FROM questions "
         "WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL "
-        "ORDER BY is_pinned DESC, pinned_at ASC, answered_at DESC"
+        "ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, answered_at DESC"
     ).fetchall()
     questions = [dict(row) for row in rows]
 
@@ -204,7 +208,7 @@ def get_all_questions(filter_type="all"):
     elif filter_type == "visible":
         base_query += "AND is_visible = 1 "
 
-    base_query += "ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
+    base_query += "ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, created_at DESC"
     rows = conn.execute(base_query, params).fetchall()
     questions = [dict(row) for row in rows]
 
@@ -335,8 +339,8 @@ def get_admin_posts():
     """获取所有管理员提问（公开页），含公开回答，置顶优先"""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed FROM questions "
-        "WHERE is_admin_post = 1 ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
+        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed, is_help, tag FROM questions "
+        "WHERE is_admin_post = 1 ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, created_at DESC"
     ).fetchall()
     posts = [dict(row) for row in rows]
     for p in posts:
@@ -350,7 +354,7 @@ def get_admin_post(post_id):
     """获取单个管理员提问 + 公开回答"""
     conn = get_db()
     row = conn.execute(
-        "SELECT id, content, created_at, is_closed, is_pinned, pinned_at FROM questions "
+        "SELECT id, content, created_at, is_closed, is_pinned, pinned_at, is_help, tag FROM questions "
         "WHERE id = ? AND is_admin_post = 1", (post_id,)
     ).fetchone()
     if not row:
@@ -365,23 +369,23 @@ def get_admin_post(post_id):
 def _get_admin_post_answers(conn, post_id):
     """获取管理员提问下的可见回答，置顶优先"""
     rows = conn.execute(
-        "SELECT id, content, asker_cookie_id, created_at, is_pinned, pinned_at "
+        "SELECT id, content, asker_cookie_id, created_at, is_pinned, pinned_at, nickname, is_help, is_admin_answer "
         "FROM questions WHERE parent_id = ? AND is_admin_post = 0 AND is_visible = 1 "
-        "ORDER BY is_pinned DESC, pinned_at ASC, created_at ASC",
+        "ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, created_at ASC",
         (post_id,),
     ).fetchall()
     return [dict(row) for row in rows]
 
 
-def submit_answer(post_id, content, asker_cookie_id, asker_ip):
+def submit_answer(post_id, content, asker_cookie_id, asker_ip, nickname=''):
     """匿名用户提交回答"""
     answer_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     conn.execute(
-        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, parent_id, is_admin_post, is_visible, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 0, 1, ?)",
-        (answer_id, content, asker_cookie_id, asker_ip, post_id, now),
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, parent_id, is_admin_post, is_visible, created_at, nickname) "
+        "VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?)",
+        (answer_id, content, asker_cookie_id, asker_ip, post_id, now, nickname),
     )
     conn.commit()
     conn.close()
@@ -392,8 +396,8 @@ def get_admin_all_posts():
     """管理员：获取所有提问 + 全部回答（含隐藏），置顶优先"""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed FROM questions "
-        "WHERE is_admin_post = 1 ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
+        "SELECT id, content, created_at, is_pinned, pinned_at, is_closed, is_help, tag FROM questions "
+        "WHERE is_admin_post = 1 ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, created_at DESC"
     ).fetchall()
     posts = [dict(row) for row in rows]
     for p in posts:
@@ -406,12 +410,43 @@ def get_admin_all_posts():
 def _get_admin_post_all_answers(conn, post_id):
     """管理员：获取所有回答（含隐藏），置顶优先"""
     rows = conn.execute(
-        "SELECT id, content, asker_cookie_id, asker_ip, created_at, is_visible, is_pinned, pinned_at "
+        "SELECT id, content, asker_cookie_id, asker_ip, created_at, is_visible, is_pinned, pinned_at, nickname, is_help, is_admin_answer "
         "FROM questions WHERE parent_id = ? AND is_admin_post = 0 "
-        "ORDER BY is_pinned DESC, pinned_at ASC, created_at ASC",
+        "ORDER BY is_help DESC, is_pinned DESC, pinned_at ASC, created_at ASC",
         (post_id,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def set_tag(question_id, tag):
+    """管理员：设置问题/帖子的自定义 tag"""
+    conn = get_db()
+    conn.execute("UPDATE questions SET tag = ? WHERE id = ?", (tag.strip()[:10] if tag else '', question_id))
+    conn.commit()
+    conn.close()
+
+
+def toggle_help(question_id):
+    """管理员：切换帮助文档标识（同时取消其他同类的帮助标识）"""
+    conn = get_db()
+    row = conn.execute("SELECT is_help, parent_id, is_admin_post FROM questions WHERE id = ?", (question_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+    new_val = 0 if row["is_help"] else 1
+    if new_val:
+        # 取消同类其他问题的帮助标识
+        if row["is_admin_post"]:
+            conn.execute("UPDATE questions SET is_help = 0 WHERE is_admin_post = 1")
+        elif row["parent_id"]:
+            # 是回答，取消同父问题的其他回答的帮助标识
+            conn.execute("UPDATE questions SET is_help = 0 WHERE parent_id = ?", (row["parent_id"],))
+        else:
+            # 是普通提问，取消所有普通提问的帮助标识
+            conn.execute("UPDATE questions SET is_help = 0 WHERE parent_id IS NULL AND is_admin_post = 0")
+    conn.execute("UPDATE questions SET is_help = ? WHERE id = ?", (new_val, question_id))
+    conn.commit()
+    conn.close()
 
 
 def toggle_close_post(post_id):
@@ -423,6 +458,21 @@ def toggle_close_post(post_id):
         conn.execute("UPDATE questions SET is_closed = ? WHERE id = ?", (new_val, post_id))
     conn.commit()
     conn.close()
+
+
+def submit_admin_answer(post_id, content, nickname):
+    """管理员提交留言"""
+    answer_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO questions (id, content, asker_cookie_id, asker_ip, parent_id, is_admin_post, is_visible, created_at, is_admin_answer, nickname) "
+        "VALUES (?, ?, 'admin', 'admin', ?, 0, 1, ?, 1, ?)",
+        (answer_id, content, post_id, now, nickname),
+    )
+    conn.commit()
+    conn.close()
+    return answer_id
 
 
 def toggle_answer_visibility(answer_id):

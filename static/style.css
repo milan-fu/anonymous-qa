@@ -1053,6 +1053,13 @@ body {
     resize: vertical;
 }
 
+.answer-item.admin-answer {
+    background: #fdf2f8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid #fbcfe8;
+}
+
 .answer-empty {
     text-align: center;
     padding: 24px 0;
@@ -1089,6 +1096,11 @@ body {
     margin-left: auto;
     display: flex;
     gap: 4px;
+}
+
+.answer-manage-item.admin-answer {
+    background: #fdf2f8;
+    border: 1px solid #fbcfe8;
 }
 
 .answer-manage-item.hidden-answer {

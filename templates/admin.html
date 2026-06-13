@@ -150,6 +150,13 @@ function renderList() {
         if (q.has_unanswered_followup) {
             followUpBadge = '<span class="badge badge-followup">🔔 有追问</span>';
         }
+        var pinBadge = '';
+        if (q.is_help) {
+            pinBadge = '<span class="badge" style="background:#dbeafe;color:#1e40af;">📖 帮助</span>';
+        } else if (q.is_pinned) {
+            pinBadge = '<span class="badge badge-pinned">📌 置顶</span>';
+        }
+        var tagBadge = q.tag ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32;">' + escapeHtml(q.tag) + '</span>' : '';
         return '<div class="qa-card admin-list-item" onclick="openDetail(\'' + q.id + '\')">' +
             '<div class="qa-card-header">' +
                 '<div class="admin-card-summary">' +
@@ -158,7 +165,8 @@ function renderList() {
                     '<span class="qa-card-question">' + escapeHtml(q.content) + '</span>' +
                 '</div>' +
                 '<span class="qa-status">' +
-                    (q.is_pinned ? '<span class="badge badge-pinned">📌 置顶</span>' : '') +
+                    pinBadge +
+                    tagBadge +
                     followUpBadge +
                     (q.is_answered
                         ? '<span class="badge badge-answered">✅ 已回答</span>'
@@ -265,7 +273,12 @@ function openDetail(qid) {
             '<div class="detail-question">' + escapeHtml(q.content) + '</div>' +
             answerBlock +
             followUpsHtml +
-            '<div class="admin-actions">' +
+            '<div class="admin-actions" style="flex-wrap:wrap;">' +
+                '<input id="tagInput-' + q.id + '" class="input" placeholder="自定义 tag（限10字）" maxlength="10" style="width:130px;padding:4px 8px;font-size:12px;" value="' + escapeHtml(q.tag || '') + '" />' +
+                '<button class="btn btn-sm btn-outline" onclick="saveTag(\'' + q.id + '\')">💾 保存 tag</button>' +
+                (q.is_help
+                    ? '<button class="btn btn-sm btn-outline" onclick="toggleHelp(\'' + q.id + '\')">📖 取消帮助</button>'
+                    : '<button class="btn btn-sm btn-outline" onclick="toggleHelp(\'' + q.id + '\')">📖 设为帮助</button>') +
                 (q.is_pinned
                     ? '<button class="btn btn-sm btn-outline" onclick="togglePin(\'' + q.id + '\')">📌 取消置顶</button>'
                     : '<button class="btn btn-sm btn-outline" onclick="togglePin(\'' + q.id + '\')">📌 置顶</button>') +
@@ -563,6 +576,13 @@ function renderPostList() {
     empty.style.display = 'none';
 
     list.innerHTML = allPosts.map(function(p) {
+        var pinBadge = '';
+        if (p.is_help) {
+            pinBadge = '<span class="badge" style="background:#dbeafe;color:#1e40af;">📖 帮助</span>';
+        } else if (p.is_pinned) {
+            pinBadge = '<span class="badge badge-pinned">📌 置顶</span>';
+        }
+        var tagBadge = p.tag ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32;">' + escapeHtml(p.tag) + '</span>' : '';
         return '<div class="qa-card admin-list-item" onclick="openPostManage(\'' + p.id + '\')">' +
             '<div class="qa-card-header">' +
                 '<div class="admin-card-summary">' +
@@ -570,7 +590,8 @@ function renderPostList() {
                     '<span class="qa-card-question">📢 ' + escapeHtml(p.content) + '</span>' +
                 '</div>' +
                 '<span class="qa-status">' +
-                    (p.is_pinned ? '<span class="badge badge-pinned">📌 置顶</span>' : '') +
+                    pinBadge +
+                    tagBadge +
                     (p.is_closed ? '<span class="badge badge-hidden">🔒 已关闭</span>' : '') +
                     '<span class="badge badge-answered">💬 ' + p.answer_count + ' 条留言</span>' +
                 '</span>' +
@@ -588,11 +609,14 @@ function openPostManage(pid) {
         answersHtml = '<div class="follow-ups">' +
             p.answers.map(function(a) {
                 var hiddenClass = a.is_visible ? '' : ' hidden-answer';
-                var ipInfo = '📍 ' + escapeHtml(a.asker_ip || '?') + ' · ' + escapeHtml(a.asker_location || '');
-                return '<div class="answer-manage-item' + hiddenClass + '">' +
+                var adminClass = a.is_admin_answer ? ' admin-answer' : '';
+                var ipInfo = a.is_admin_answer ? '管理员' : ('📍 ' + escapeHtml(a.asker_ip || '?') + ' · ' + escapeHtml(a.asker_location || ''));
+                var nick = a.nickname ? escapeHtml(a.nickname) : (a.is_admin_answer ? '管理员' : '匿名用户');
+                return '<div class="answer-manage-item' + hiddenClass + adminClass + '">' +
                     (a.is_pinned ? '<span class="pin-badge" style="font-size:10px;">📌 置顶</span>' : '') +
                     '<div class="answer-text">' + escapeHtml(a.content) + '</div>' +
                     '<div class="answer-meta-row">' +
+                        '<span>' + nick + '</span>' +
                         '<span>' + ipInfo + '</span>' +
                         '<span>📅 ' + formatTime(a.created_at) + '</span>' +
                         '<span class="answer-actions">' +
@@ -624,7 +648,20 @@ function openPostManage(pid) {
                 (p.is_closed ? '<span>🔒 已关闭留言</span>' : '') +
             '</div>' +
             answersHtml +
-            '<div class="admin-actions" style="margin-top:12px;">' +
+            '<div style="margin:0 20px;padding:12px;background:#fdf2f8;border-radius:8px;border:1px solid #fbcfe8;">' +
+                '<p style="font-size:12px;color:#9d174d;margin-bottom:8px;">👑 以管理员身份留言</p>' +
+                '<textarea id="adminAnswerInput" class="input" placeholder="写下留言…（不超过200字）" maxlength="200" rows="2" style="font-size:13px;min-height:50px;"></textarea>' +
+                '<div style="display:flex;gap:8px;margin-top:6px;">' +
+                    '<input id="adminNickInput" class="input" placeholder="昵称（选填）" maxlength="20" style="flex:1;padding:6px 10px;font-size:12px;" />' +
+                    '<button class="btn btn-sm btn-primary" onclick="submitAdminAnswer(\'' + p.id + '\')">💾 提交</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="admin-actions" style="margin-top:12px;flex-wrap:wrap;">' +
+                '<input id="tagInput-' + p.id + '" class="input" placeholder="自定义 tag（限10字）" maxlength="10" style="width:130px;padding:4px 8px;font-size:12px;" value="' + escapeHtml(p.tag || '') + '" />' +
+                '<button class="btn btn-sm btn-outline" onclick="saveTag(\'' + p.id + '\')">💾 保存 tag</button>' +
+                '<button class="btn btn-sm ' + (p.is_help ? 'btn-secondary' : 'btn-outline') + '" onclick="toggleHelp(\'' + p.id + '\')">' +
+                    (p.is_help ? '📖 取消帮助' : '📖 设为帮助') +
+                '</button>' +
                 '<button class="btn btn-sm ' + (p.is_pinned ? 'btn-secondary' : 'btn-outline') + '" onclick="togglePostPin(\'' + p.id + '\')">' +
                     (p.is_pinned ? '📌 取消置顶' : '📌 置顶') +
                 '</button>' +
@@ -666,6 +703,34 @@ async function toggleAnswerPin(aid, pid) {
     } catch(err) {}
 }
 
+async function saveTag(qid) {
+    var input = document.getElementById('tagInput-' + qid);
+    if (!input) return;
+    try {
+        var res = await fetch('/api/admin/questions/' + qid + '/tag', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: input.value })
+        });
+        if (res.ok) {
+            if (currentTab === 'posts') { await loadPosts(); openPostManage(qid); }
+            else { await loadQuestions(); openDetail(qid); }
+        }
+    } catch(err) {}
+}
+
+async function toggleHelp(qid) {
+    try {
+        var res = await fetch('/api/admin/questions/' + qid + '/help', { method: 'POST' });
+        if (res.ok) {
+            // 根据当前 tab 刷新
+            if (currentTab === 'posts') { await loadPosts(); } else { await loadQuestions(); await loadStats(); }
+            // 重新打开详情
+            if (currentTab === 'posts') { openPostManage(qid); } else { openDetail(qid); }
+        }
+    } catch(err) {}
+}
+
 async function togglePostPin(pid) {
     try {
         var res = await fetch('/api/admin/questions/' + pid + '/pin', { method: 'POST' });
@@ -690,6 +755,25 @@ async function deleteAnswer(aid, pid) {
     if (!confirm('确定要删除这条留言吗？')) return;
     try {
         var res = await fetch('/api/admin/questions/' + aid, { method: 'DELETE' });
+        if (res.ok) {
+            await loadPosts();
+            openPostManage(pid);
+        }
+    } catch(err) {}
+}
+
+async function submitAdminAnswer(pid) {
+    var input = document.getElementById('adminAnswerInput');
+    var nickInput = document.getElementById('adminNickInput');
+    if (!input) return;
+    var content = input.value.trim();
+    if (!content) { alert('内容不能为空'); return; }
+    try {
+        var res = await fetch('/api/admin/posts/' + pid + '/admin-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, nickname: nickInput ? nickInput.value.trim() : '' })
+        });
         if (res.ok) {
             await loadPosts();
             openPostManage(pid);

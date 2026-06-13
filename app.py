@@ -384,8 +384,9 @@ def api_submit_answer(post_id):
     if recent_count >= config.RATE_LIMIT_PER_MINUTE:
         return jsonify({"error": "操作太频繁了，请稍后再试"}), 429
 
+    nickname = data.get("nickname", "").strip()[:20]  # 限 20 字
     asker_id = get_or_create_asker_id()
-    answer_id = database.submit_answer(post_id, content, asker_id, asker_ip)
+    answer_id = database.submit_answer(post_id, content, asker_id, asker_ip, nickname)
 
     response = jsonify({"success": True, "answer_id": answer_id})
     return set_asker_cookie(response)
@@ -442,12 +443,42 @@ def api_admin_toggle_answer_visibility(answer_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/admin/questions/<question_id>/tag", methods=["PUT"])
+@admin_required
+def api_admin_set_tag(question_id):
+    """管理员：设置自定义 tag"""
+    data = request.get_json()
+    database.set_tag(question_id, data.get("tag", "") if data else "")
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/questions/<question_id>/help", methods=["POST"])
+@admin_required
+def api_admin_toggle_help(question_id):
+    """管理员：切换帮助文档标识"""
+    database.toggle_help(question_id)
+    return jsonify({"success": True})
+
+
 @app.route("/api/admin/posts/<post_id>/close", methods=["POST"])
 @admin_required
 def api_admin_toggle_close_post(post_id):
     """管理员：切换提问关闭状态"""
     database.toggle_close_post(post_id)
     return jsonify({"success": True})
+
+
+@app.route("/api/admin/posts/<post_id>/admin-answer", methods=["POST"])
+@admin_required
+def api_admin_submit_answer(post_id):
+    """管理员：以管理员身份留言"""
+    data = request.get_json()
+    if not data or not data.get("content"):
+        return jsonify({"error": "内容不能为空"}), 400
+    content = data["content"].strip()
+    nickname = data.get("nickname", "").strip()[:20]
+    answer_id = database.submit_admin_answer(post_id, content, nickname)
+    return jsonify({"success": True, "answer_id": answer_id})
 
 
 @app.route("/api/admin/posts/<post_id>/answers/reorder", methods=["PUT"])
