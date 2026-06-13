@@ -162,7 +162,7 @@ function openQaDetail(qid) {
 
     var html =
         '<div class="modal-header">' +
-            '<h3>问答详情</h3>' +
+            '<h3>问答详情' + (q.is_pinned ? ' <span class="pin-badge">📌 置顶</span>' : '') + '</h3>' +
             '<button class="modal-close" onclick="closeQaDetail()">&times;</button>' +
         '</div>' +
         '<div class="modal-body">' +

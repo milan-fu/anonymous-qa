@@ -4,8 +4,12 @@
 {% block content %}
 <header class="header admin-header">
     <h1>🔑 管理员面板</h1>
-    <div style="display:flex;align-items:center;gap:12px;">
-        <span class="badge badge-pending" id="unansweredBadge" style="font-size:14px;padding:6px 14px;">⏳ 未回答: ...</span>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;" id="statsBar">
+        <span class="badge" style="background:#e2e8f0;color:#1a202c;font-size:13px;padding:5px 12px;">📊 全部: <b id="statTotal">...</b></span>
+        <span class="badge badge-pending" style="font-size:13px;padding:5px 12px;">⏳ 未回答: <b id="statUnanswered">...</b></span>
+        <span class="badge badge-answered" style="font-size:13px;padding:5px 12px;">✅ 已回答: <b id="statAnswered">...</b></span>
+        <span class="badge badge-public" style="font-size:13px;padding:5px 12px;">🌐 已公开: <b id="statVisible">...</b></span>
+        <button class="btn btn-sm btn-outline" onclick="openPinManager()" style="font-size:12px;">📌 管理置顶</button>
         <button class="btn btn-secondary btn-sm" onclick="handleLogout()">退出登录</button>
     </div>
 </header>
@@ -30,6 +34,11 @@
 <div class="modal-overlay" id="detailModal">
     <div class="modal modal-wide" id="detailModalContent"></div>
 </div>
+
+<!-- 置顶管理弹窗 -->
+<div class="modal-overlay" id="pinManagerModal">
+    <div class="modal" id="pinManagerContent"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -42,7 +51,10 @@ async function loadStats() {
     try {
         var res = await fetch('/api/admin/stats');
         var data = await res.json();
-        document.getElementById('unansweredBadge').textContent = '⏳ 未回答: ' + data.unanswered_count;
+        document.getElementById('statTotal').textContent = data.total;
+        document.getElementById('statUnanswered').textContent = data.unanswered;
+        document.getElementById('statAnswered').textContent = data.answered;
+        document.getElementById('statVisible').textContent = data.visible;
     } catch(e) {}
 }
 
@@ -85,6 +97,7 @@ function renderList() {
                     '<span class="qa-card-question">' + escapeHtml(q.content) + '</span>' +
                 '</div>' +
                 '<span class="qa-status">' +
+                    (q.is_pinned ? '<span class="badge badge-pinned">📌 置顶</span>' : '') +
                     followUpBadge +
                     (q.is_answered
                         ? '<span class="badge badge-answered">✅ 已回答</span>'
@@ -194,9 +207,13 @@ function openDetail(qid) {
             answerBlock +
             followUpsHtml +
             '<div class="admin-actions">' +
+                (q.is_pinned
+                    ? '<button class="btn btn-sm btn-outline" onclick="togglePin(\'' + q.id + '\')">📌 取消置顶</button>'
+                    : '<button class="btn btn-sm btn-outline" onclick="togglePin(\'' + q.id + '\')">📌 置顶</button>') +
                 (q.is_visible
                     ? '<button class="btn btn-secondary btn-sm" onclick="toggleFromModal(\'' + q.id + '\', false)">🙈 隐藏</button>'
                     : '<button class="btn btn-outline btn-sm" onclick="toggleFromModal(\'' + q.id + '\', true)">👁️ 展示</button>') +
+                '<button class="btn btn-sm btn-danger" onclick="deleteQuestion(\'' + q.id + '\')">🗑️ 删除</button>' +
             '</div>' +
             '<p class="admin-action-msg" id="msg-' + q.id + '"></p>' +
         '</div>';
@@ -305,6 +322,167 @@ function escapeHtml(str) {
 async function handleLogout() {
     await fetch('/api/admin/logout', { method: 'POST' });
     window.location.href = '/admin';
+}
+
+// ── 删除 ────────────────────────────────────────────
+
+async function deleteQuestion(qid) {
+    if (!confirm('确定要删除这个问题吗？追问也会被一并删除，此操作不可撤销！')) return;
+    try {
+        var res = await fetch('/api/admin/questions/' + qid, { method: 'DELETE' });
+        if (res.ok) {
+            closeDetail();
+            await loadQuestions();
+            await loadStats();
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) {}
+}
+
+// ── 置顶 ────────────────────────────────────────────
+
+async function togglePin(qid) {
+    try {
+        var res = await fetch('/api/admin/questions/' + qid + '/pin', { method: 'POST' });
+        if (res.ok) {
+            await loadQuestions();
+            await loadStats();
+            openDetail(qid);
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) {}
+}
+
+function openPinManager() {
+    var pinned = allQuestions.filter(function(q) { return q.is_pinned; });
+    if (!pinned.length) {
+        var html =
+            '<div class="modal-header">' +
+                '<h3>📌 管理置顶</h3>' +
+                '<button class="modal-close" onclick="closePinManager()">&times;</button>' +
+            '</div>' +
+            '<div class="modal-body">' +
+                '<p style="text-align:center;color:var(--color-text-secondary);padding:20px;">暂无置顶问题</p>' +
+            '</div>';
+        document.getElementById('pinManagerContent').innerHTML = html;
+        document.getElementById('pinManagerModal').classList.add('active');
+        return;
+    }
+
+    var itemsHtml = pinned.map(function(q, i) {
+        return '<div class="pin-manage-item" draggable="true" ' +
+            'ondragstart="pinDragStart(event, ' + i + ')" ' +
+            'ondragover="pinDragOver(event)" ' +
+            'ondragleave="pinDragLeave(event)" ' +
+            'ondrop="pinDrop(event, ' + i + ')" ' +
+            'ondragend="pinDragEnd(event)">' +
+            '<span class="pin-drag-handle">⋮⋮</span>' +
+            '<span style="font-weight:700;color:var(--color-text-secondary);flex-shrink:0;">#' + (i + 1) + '</span>' +
+            '<span class="pin-info">' + escapeHtml(q.content) + '</span>' +
+        '</div>';
+    }).join('');
+
+    var html =
+        '<div class="modal-header">' +
+            '<h3>📌 管理置顶（共 ' + pinned.length + ' 个）</h3>' +
+            '<button class="modal-close" onclick="closePinManager()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+            '<p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px;">拖拽条目调整顺序，点击保存生效</p>' +
+            '<div id="pinManageList">' + itemsHtml + '</div>' +
+        '</div>' +
+        '<div class="modal-footer">' +
+            '<button class="btn btn-secondary" onclick="closePinManager()">取消</button>' +
+            '<button class="btn btn-primary" onclick="savePinOrder()">💾 保存顺序</button>' +
+        '</div>';
+    document.getElementById('pinManagerContent').innerHTML = html;
+    document.getElementById('pinManagerModal').classList.add('active');
+}
+
+function closePinManager() {
+    document.getElementById('pinManagerModal').classList.remove('active');
+    loadQuestions();  // 从数据库重新加载，丢弃未保存的排序变更
+}
+
+document.getElementById('pinManagerModal').addEventListener('click', function(e) {
+    if (e.target === this) closePinManager();
+});
+
+// ── 拖拽排序 ──────────────────────────────────────
+
+var pinDragIndex = -1;
+
+function pinDragStart(e, idx) {
+    pinDragIndex = idx;
+    e.target.classList.add('pin-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+}
+
+function pinDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('pin-drag-over');
+}
+
+function pinDragLeave(e) {
+    e.currentTarget.classList.remove('pin-drag-over');
+}
+
+function pinDrop(e, targetIdx) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('pin-drag-over');
+    if (pinDragIndex < 0 || pinDragIndex === targetIdx) return;
+
+    var pinned = allQuestions.filter(function(q) { return q.is_pinned; });
+    var item = pinned.splice(pinDragIndex, 1)[0];
+    pinned.splice(targetIdx, 0, item);
+
+    var unpinned = allQuestions.filter(function(q) { return !q.is_pinned; });
+    allQuestions = pinned.concat(unpinned);
+
+    pinDragIndex = -1;
+    refreshPinList();
+}
+
+function pinDragEnd(e) {
+    e.target.classList.remove('pin-dragging');
+    document.querySelectorAll('.pin-drag-over').forEach(function(el) { el.classList.remove('pin-drag-over'); });
+    pinDragIndex = -1;
+}
+
+function refreshPinList() {
+    var container = document.getElementById('pinManageList');
+    if (!container) return;
+    var pinned = allQuestions.filter(function(q) { return q.is_pinned; });
+    container.innerHTML = pinned.map(function(q, i) {
+        return '<div class="pin-manage-item" draggable="true" ' +
+            'ondragstart="pinDragStart(event, ' + i + ')" ' +
+            'ondragover="pinDragOver(event)" ' +
+            'ondragleave="pinDragLeave(event)" ' +
+            'ondrop="pinDrop(event, ' + i + ')" ' +
+            'ondragend="pinDragEnd(event)">' +
+            '<span class="pin-drag-handle">⋮⋮</span>' +
+            '<span style="font-weight:700;color:var(--color-text-secondary);flex-shrink:0;">#' + (i + 1) + '</span>' +
+            '<span class="pin-info">' + escapeHtml(q.content) + '</span>' +
+        '</div>';
+    }).join('');
+    var h3 = document.querySelector('#pinManagerContent .modal-header h3');
+    if (h3) h3.textContent = '📌 管理置顶（共 ' + pinned.length + ' 个）';
+}
+
+async function savePinOrder() {
+    var pinned = allQuestions.filter(function(q) { return q.is_pinned; });
+    var ids = pinned.map(function(q) { return q.id; });
+    try {
+        var res = await fetch('/api/admin/pins/reorder', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids })
+        });
+        if (res.ok) {
+            closePinManager();
+            await loadQuestions();
+        } else if (res.status === 401) { window.location.href = '/admin'; }
+    } catch(err) {}
 }
 
 loadQuestions();

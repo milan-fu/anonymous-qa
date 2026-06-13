@@ -13,13 +13,14 @@
 </nav>
 
 <section class="qa-section">
-    <h2 class="section-title">— 已公开的回答 —</h2>
+    <h2 class="section-title">— 已公开的回答 · {{ visible_count }} 个问题 —</h2>
 
     {% if questions %}
     <div class="qa-list" id="qaList">
         {% for q in questions %}
-        <div class="qa-card qa-clickable" onclick="openQaDetail('{{ q.id }}')">
+        <div class="qa-card qa-clickable {% if q.is_pinned %}qa-pinned{% endif %}" onclick="openQaDetail('{{ q.id }}')">
             <div class="qa-card-header">
+                {% if q.is_pinned %}<span class="pin-badge">📌 置顶</span>{% endif %}
                 <span class="qa-card-question">Q: {{ q.content | e }}</span>
             </div>
         </div>

@@ -45,6 +45,8 @@ def init_db():
     migrate_add_column(conn, "questions", "secret_key", "TEXT DEFAULT ''")
     migrate_add_column(conn, "questions", "parent_id", "TEXT DEFAULT NULL")
     migrate_add_column(conn, "questions", "modified_at", "TEXT DEFAULT NULL")
+    migrate_add_column(conn, "questions", "is_pinned", "INTEGER NOT NULL DEFAULT 0")
+    migrate_add_column(conn, "questions", "pinned_at", "TEXT DEFAULT NULL")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ip_cache (
@@ -118,13 +120,13 @@ def create_question(content, asker_cookie_id, asker_ip, parent_id=None):
 
 
 def get_visible_questions():
-    """获取所有公开展示的问答（顶级 + 仅已回答的追问），按回答时间倒序"""
+    """获取所有公开展示的问答（顶级 + 仅已回答的追问），置顶优先，其余按回答时间倒序"""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, content, answer_content, created_at, answered_at, modified_at "
+        "SELECT id, content, answer_content, created_at, answered_at, modified_at, is_pinned, pinned_at "
         "FROM questions "
         "WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL "
-        "ORDER BY answered_at DESC"
+        "ORDER BY is_pinned DESC, pinned_at ASC, answered_at DESC"
     ).fetchall()
     questions = [dict(row) for row in rows]
 
@@ -200,7 +202,7 @@ def get_all_questions(filter_type="all"):
     elif filter_type == "visible":
         base_query += "AND is_visible = 1 "
 
-    base_query += "ORDER BY created_at DESC"
+    base_query += "ORDER BY is_pinned DESC, pinned_at ASC, created_at DESC"
     rows = conn.execute(base_query, params).fetchall()
     questions = [dict(row) for row in rows]
 
@@ -301,6 +303,15 @@ def adopt_question(question_id, asker_cookie_id):
     conn.close()
 
 
+def delete_question(question_id):
+    """删除问题及其所有追问"""
+    conn = get_db()
+    conn.execute("DELETE FROM questions WHERE parent_id = ?", (question_id,))
+    conn.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+    conn.commit()
+    conn.close()
+
+
 def count_recent_questions_from_ip(ip, minutes=1):
     """统计某 IP 在最近 N 分钟内的提问数"""
     conn = get_db()
@@ -310,3 +321,58 @@ def count_recent_questions_from_ip(ip, minutes=1):
     ).fetchone()
     conn.close()
     return row["count"]
+
+
+def toggle_pin(question_id):
+    """切换问题的置顶状态"""
+    conn = get_db()
+    row = conn.execute("SELECT is_pinned FROM questions WHERE id = ?", (question_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    new_val = 0 if row["is_pinned"] else 1
+    conn.execute(
+        "UPDATE questions SET is_pinned = ?, pinned_at = ? WHERE id = ?",
+        (new_val, now if new_val else None, question_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def reorder_pins(question_ids):
+    """接收有序的置顶问题 ID 列表，按顺序更新 pinned_at"""
+    conn = get_db()
+    base = datetime.now(timezone.utc).timestamp()
+    for i, qid in enumerate(question_ids):
+        t = datetime.fromtimestamp(base + i, tz=timezone.utc).isoformat()
+        conn.execute("UPDATE questions SET pinned_at = ? WHERE id = ?", (t, qid))
+    conn.commit()
+    conn.close()
+
+
+def get_admin_stats():
+    """管理员统计：全部、未回答、已回答、已公开"""
+    conn = get_db()
+    total = conn.execute("SELECT COUNT(*) FROM questions WHERE parent_id IS NULL").fetchone()[0]
+    unanswered = conn.execute(
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 0"
+    ).fetchone()[0]
+    answered = conn.execute(
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_answered = 1"
+    ).fetchone()[0]
+    visible = conn.execute(
+        "SELECT COUNT(*) FROM questions WHERE parent_id IS NULL AND is_visible = 1 AND is_answered = 1"
+    ).fetchone()[0]
+    conn.close()
+    return {"total": total, "unanswered": unanswered, "answered": answered, "visible": visible}
+
+
+def get_visible_count():
+    """展示页统计：公开可见的顶级问题数"""
+    conn = get_db()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM questions WHERE is_answered = 1 AND is_visible = 1 AND parent_id IS NULL"
+    ).fetchone()[0]
+    conn.close()
+    return count

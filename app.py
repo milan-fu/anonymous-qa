@@ -99,8 +99,9 @@ def set_asker_cookie(response):
 def index():
     """公开提问 & 浏览页"""
     questions = database.get_visible_questions()
+    visible_count = database.get_visible_count()
     response = app.make_response(
-        render_template("index.html", questions=questions)
+        render_template("index.html", questions=questions, visible_count=visible_count)
     )
     return set_asker_cookie(response)
 
@@ -241,9 +242,9 @@ def api_admin_login():
 @admin_required
 def api_admin_stats():
     """管理员统计"""
-    return jsonify({
-        "unanswered_count": database.get_unanswered_count(),
-    })
+    stats = database.get_admin_stats()
+    stats["unanswered_count"] = stats["unanswered"]  # 兼容旧前端
+    return jsonify(stats)
 
 
 @app.route("/api/admin/logout", methods=["POST"])
@@ -287,6 +288,40 @@ def api_admin_update_question(question_id):
     # 返回更新后的问题
     question = database.get_question_by_id(question_id)
     return jsonify({"success": True, "question": question})
+
+
+@app.route("/api/admin/questions/<question_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_question(question_id):
+    """管理员删除问题"""
+    database.delete_question(question_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/questions/<question_id>/pin", methods=["POST"])
+@admin_required
+def api_admin_toggle_pin(question_id):
+    """管理员切换置顶状态"""
+    database.toggle_pin(question_id)
+    question = database.get_question_by_id(question_id)
+    return jsonify({"success": True, "question": question})
+
+
+@app.route("/api/admin/pins/reorder", methods=["PUT"])
+@admin_required
+def api_admin_reorder_pins():
+    """管理员重排置顶顺序"""
+    data = request.get_json()
+    if not data or "ids" not in data:
+        return jsonify({"error": "缺少 ids"}), 400
+    database.reorder_pins(data["ids"])
+    return jsonify({"success": True})
+
+
+@app.route("/api/questions/stats")
+def api_question_stats():
+    """公开统计：可见问题数"""
+    return jsonify({"visible_count": database.get_visible_count()})
 
 
 # ── 启动入口 ─────────────────────────────────────────────
