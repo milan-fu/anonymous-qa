@@ -5,3 +5,4 @@ logs/
 .DS_Store
 data/
 .env
+README-Structure.md
