@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}匿名留言 — 匿名提问箱{% endblock %}
+{% block title %}匿名留言 — 一个提问箱（测试版）{% endblock %}
 
 {% block content %}
 <header class="header">
@@ -12,7 +12,7 @@
 </nav>
 
 <section class="qa-section">
-    <h2 class="section-title">— 管理员提问 · {{ admin_posts|length }} 个话题 —</h2>
+    <h2 class="section-title">— {{ admin_posts|length }} 个话题 —</h2>
 
     {% if admin_posts %}
     <div class="qa-list" id="postList">
@@ -64,7 +64,7 @@ async function openPostDetail(postId) {
                 var name = a.nickname || (a.is_admin_answer ? '管理员' : '匿名用户');
                 return '<div class="answer-item' + (a.is_admin_answer ? ' admin-answer' : '') + '">' +
                     (a.is_pinned ? ' <span class="pin-badge">📌 置顶</span>' : '') +
-                    '<div class="answer-content">' + escapeHtml(a.content) + '</div>' +
+                    '<div class="answer-content">' + renderContent(a.content) + '</div>' +
                     '<div class="answer-meta">' +
                         '<span>' + escapeHtml(name) + '</span>' +
                         '<span>📅 ' + formatTimeStr(a.created_at) + '</span>' +
@@ -155,6 +155,10 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function renderContent(text) {
+    return escapeHtml(text).replace(/\[img\](.*?)\[\/img\]/g, '<img src="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" />');
+}
+
 function showToast(message, type) {
     var toast = document.getElementById('toast');
     if (!toast) return;
@@ -180,8 +184,9 @@ async function loadPosts() {
 
 function renderPostList() {
     var list = document.getElementById('postList');
-    var title = document.querySelector('.section-title');
-    if (title) title.textContent = '— 管理员提问 · ' + postData.length + ' 个话题 —';
+    if (!list) return;
+    var title = document.querySelector('#postSection .section-title');
+    if (title) title.textContent = '— ' + postData.length + ' 个话题 —';
     if (!list) return;
     if (!postData.length) {
         list.innerHTML = '<div class="empty-state"><p>管理员还没有发起提问</p></div>';

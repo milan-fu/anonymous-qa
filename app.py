@@ -44,6 +44,24 @@ def beijing_time_filter(iso_str):
         return iso_str[:16]
 
 
+@app.template_filter("render_img")
+def render_img_filter(text):
+    """将 [img]url[/img] 转换为 img 标签"""
+    import re
+
+    if not text:
+        return ""
+    from markupsafe import Markup
+
+    escaped = Markup.escape(text)
+    result = re.sub(
+        r"\[img\](.*?)\[\/img\]",
+        r'<img src="\1" style="max-width:100%;border-radius:8px;margin:8px 0;" />',
+        escaped,
+    )
+    return Markup(result)
+
+
 # ── 工具函数 ─────────────────────────────────────────────
 
 
@@ -256,6 +274,9 @@ def api_admin_login():
 
     if data["password"] == config.ADMIN_PASSWORD:
         session["admin_logged_in"] = True
+        ip = get_real_ip()
+        loc = database.get_ip_location(ip)
+        notify.notify(f"🔑 管理员登录 · {ip} · {loc}")
         return jsonify({"success": True})
 
     return jsonify({"error": "密码错误"}), 401
@@ -345,6 +366,39 @@ def api_admin_reorder_pins():
 def api_question_stats():
     """公开统计：可见问题数"""
     return jsonify({"visible_count": database.get_visible_count()})
+
+
+# ── 图片上传 ───────────────────────────────────────────
+
+
+@app.route("/api/admin/upload", methods=["POST"])
+@admin_required
+def api_admin_upload():
+    """管理员上传图片"""
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "未选择文件"}), 400
+
+    import hashlib
+    import os as _os
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
+    if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
+        return jsonify({"error": "不支持的文件格式"}), 400
+
+    data = file.read()
+    if len(data) > 10 * 1024 * 1024:  # 10MB 上限
+        return jsonify({"error": "文件不能超过 10MB"}), 400
+
+    name = hashlib.md5(data).hexdigest()[:12] + "." + ext
+    upload_dir = _os.path.join(_os.path.dirname(__file__), "static", "uploads")
+    _os.makedirs(upload_dir, exist_ok=True)
+    path = _os.path.join(upload_dir, name)
+    with open(path, "wb") as f:
+        f.write(data)
+
+    url = f"/static/uploads/{name}"
+    return jsonify({"success": True, "url": url})
 
 
 # ── 管理员提问 & 匿名回答 API ──────────────────────────

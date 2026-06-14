@@ -147,9 +147,9 @@ async function loadQaData() {
 
 function renderQaList() {
     var list = document.getElementById('qaList');
-    var title = document.querySelector('.section-title');
-    if (title) title.textContent = '— 已公开的回答 · ' + qaData.length + ' 个问题 —';
     if (!list) return;
+    var title = document.querySelector('#qaSection .section-title');
+    if (title) title.textContent = '— 已公开的回答 · ' + qaData.length + ' 个问题 —';
     if (!qaData.length) {
         list.innerHTML = '<div class="empty-state"><p>还没有公开的回答，快来提问吧！</p></div>';
         return;
@@ -188,7 +188,7 @@ function openQaDetail(qid) {
                 return '<div class="follow-up-item">' +
                     '<div class="follow-up-q">🙋 追问：' + escapeHtml(fu.content) + '</div>' +
                     '<div class="follow-up-time">📅 ' + formatTimeStr(fu.created_at) + '</div>' +
-                    '<div class="follow-up-a">💬 ' + escapeHtml(fu.answer_content) + '</div>' +
+                    '<div class="follow-up-a">💬 ' + renderContent(fu.answer_content) + '</div>' +
                     '<div class="follow-up-ans-time">' + (fu.modified_at ? '📝 最后修改 ' + formatTimeStr(fu.modified_at) : '💬 回答时间 ' + formatTimeStr(fu.answered_at)) + '</div>' +
                 '</div>';
             }).join('') +
@@ -206,7 +206,7 @@ function openQaDetail(qid) {
                 '<span>💬 回答 ' + formatTimeStr(q.answered_at) + '</span>' +
             '</div>' +
             '<div class="detail-question">' + escapeHtml(q.content) + '</div>' +
-            '<div class="qa-card-answer" style="margin:0;padding:12px 0;border:none;">' + escapeHtml(q.answer_content) + '</div>' +
+            '<div class="qa-card-answer" style="margin:0;padding:12px 0;border:none;">' + renderContent(q.answer_content) + '</div>' +
             followUpsHtml +
         '</div>';
     document.getElementById('qaDetailContent').innerHTML = html;
@@ -229,6 +229,10 @@ function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str || '';
     return div.innerHTML;
+}
+
+function renderContent(text) {
+    return escapeHtml(text).replace(/\[img\](.*?)\[\/img\]/g, '<img src="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" />');
 }
 
 // 点击背景关闭

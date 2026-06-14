@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}查看问题 — 匿名提问箱{% endblock %}
+{% block title %}查看问题 — 一个提问箱（测试版）{% endblock %}
 
 {% block content %}
 <header class="header">
@@ -9,6 +9,7 @@
 
 <nav class="nav-links">
     <a href="/" class="nav-link">🏠 返回首页</a>
+    <a href="/ask" class="nav-link">📬 匿名提问</a>
     <a href="/my" class="nav-link">📋 我的问题</a>
 </nav>
 
@@ -20,7 +21,7 @@
         <div class="qa-card-body" style="max-height: none;">
             <div class="qa-card-time">📅 提问 {{ question.created_at | bjt }}</div>
             {% if question.is_answered %}
-            <div class="qa-card-answer">{{ question.answer_content | e }}</div>
+            <div class="qa-card-answer">{{ question.answer_content | render_img }}</div>
             <div class="qa-card-time">💬 回答 {{ question.answered_at | bjt }}</div>
 
             <!-- 追问（含未回答） -->
@@ -31,7 +32,7 @@
                     <div class="follow-up-q">🙋 追问：{{ fu.content | e }}</div>
                     <div class="follow-up-time">📅 {{ fu.created_at | bjt }}</div>
                     {% if fu.is_answered %}
-                    <div class="follow-up-a">💬 {{ fu.answer_content | e }}</div>
+                    <div class="follow-up-a">💬 {{ fu.answer_content | render_img }}</div>
                     <div class="follow-up-ans-time">{% if fu.modified_at %}📝 最后修改 {{ fu.modified_at | bjt }}{% else %}💬 回答时间 {{ fu.answered_at | bjt }}{% endif %}</div>
                     {% else %}
                     <div class="follow-up-pending">⏳ 等待回答</div>
