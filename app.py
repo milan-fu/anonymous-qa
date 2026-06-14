@@ -66,9 +66,18 @@ def render_img_filter(text):
 
 
 def get_real_ip():
-    """获取真实客户端 IP（处理 Nginx 反向代理）"""
+    """获取真实客户端 IP（处理 Cloudflare + Nginx 反向代理）"""
+    # Cloudflare Tunnel 传递真实 IP
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip.strip()
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
+        # 排除 localhost 和私有地址
+        for ip in forwarded.split(","):
+            ip = ip.strip()
+            if ip and not ip.startswith(("127.", "192.168.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.", "172.31.", "::1")):
+                return ip
         return forwarded.split(",")[0].strip()
     return request.remote_addr
 
