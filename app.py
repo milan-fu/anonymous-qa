@@ -400,14 +400,23 @@ def api_admin_upload():
         return jsonify({"error": "文件不能超过 10MB"}), 400
 
     name = hashlib.md5(data).hexdigest()[:12] + "." + ext
-    upload_dir = _os.path.join(_os.path.dirname(__file__), "static", "uploads")
+    upload_dir = _os.path.join(_os.path.dirname(__file__), "data", "uploads")
     _os.makedirs(upload_dir, exist_ok=True)
     path = _os.path.join(upload_dir, name)
     with open(path, "wb") as f:
         f.write(data)
 
-    url = f"/static/uploads/{name}"
+    url = f"/uploads/{name}"
     return jsonify({"success": True, "url": url})
+
+
+@app.route("/uploads/<filename>")
+def serve_upload(filename):
+    """提供 data/uploads/ 中的文件"""
+    from flask import send_from_directory
+
+    upload_dir = os.path.join(os.path.dirname(__file__), "data", "uploads")
+    return send_from_directory(upload_dir, filename)
 
 
 # ── 管理员提问 & 匿名回答 API ──────────────────────────
