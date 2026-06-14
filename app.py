@@ -66,19 +66,32 @@ def render_img_filter(text):
 
 
 def get_real_ip():
-    """获取真实客户端 IP（处理 Cloudflare + Nginx 反向代理）"""
-    # Cloudflare Tunnel 传递真实 IP
+    """获取真实客户端 IP（处理 Cloudflare + Nginx 反向代理），优先返回 IPv4"""
+
     cf_ip = request.headers.get("CF-Connecting-IP")
     if cf_ip:
-        return cf_ip.strip()
+        ip = cf_ip.strip()
+        if ":" not in ip:
+            return ip  # IPv4
+        fallback_ip = ip  # IPv6，记下来继续找
+
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        # 排除 localhost 和私有地址
+        v6_fallback = None
         for ip in forwarded.split(","):
             ip = ip.strip()
-            if ip and not ip.startswith(("127.", "192.168.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.", "172.31.", "::1")):
-                return ip
-        return forwarded.split(",")[0].strip()
+            if not ip or ip.startswith(("127.", "192.168.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "172.30.", "172.31.", "::1")):
+                continue
+            if ":" in ip:
+                if not v6_fallback:
+                    v6_fallback = ip
+                continue
+            return ip  # IPv4
+        if v6_fallback:
+            return v6_fallback
+        if cf_ip and ":" in cf_ip:
+            return cf_ip.strip()
+
     return request.remote_addr
 
 
@@ -118,6 +131,20 @@ def set_asker_cookie(response):
             samesite="Lax",
         )
     return response
+
+
+# ── 验证文件 ─────────────────────────────────────────────
+
+
+@app.route("/<path:filename>.txt")
+def serve_verification(filename):
+    """提供根目录下的 .txt 验证文件"""
+    txt_path = os.path.join(os.path.dirname(__file__), f"{filename}.txt")
+    if os.path.exists(txt_path):
+        from flask import send_file
+        return send_file(txt_path, mimetype="text/plain")
+    from flask import abort
+    abort(404)
 
 
 # ── 页面路由 ─────────────────────────────────────────────
