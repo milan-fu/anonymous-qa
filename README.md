@@ -28,7 +28,7 @@ python app.py
 
 ## 部署到服务器
 
-参考视频教程：[阿里云服务器 + 宝塔面板部署指南](https://www.bilibili.com/video/BV1TCMvzJEtp)
+参考视频教程：[【轻松落地】二十分钟，制作并上传免费网站！| Freevian](https://www.bilibili.com/video/BV1TCMvzJEtp)
 
 简要步骤：
 1. 购买阿里云轻量服务器，安装宝塔面板
